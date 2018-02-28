@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/parallel_line_construction" >
+        <file>icon.png</file>
+    </qresource>
+</RCC>
