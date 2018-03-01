@@ -21,9 +21,12 @@
  *                                                                         *
  ***************************************************************************/
 """
+
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QAction
+from qgis.gui import QgsMapToolEmitPoint, QgsMapToolIdentify
+
 # Initialize Qt resources from file resources.py
 from .resources import *
 
@@ -74,6 +77,8 @@ class ParallelLineConstruction:
 
         self.pluginIsActive = False
         self.dockwidget = None
+        self.my_map_tool = None
+        self.previous_map_tool = None
 
 
     # noinspection PyMethodMayBeStatic
@@ -221,7 +226,7 @@ class ParallelLineConstruction:
             # dockwidget may not exist if:
             #    first run of plugin
             #    removed on close (see self.onClosePlugin method)
-            if self.dockwidget == None:
+            if self.dockwidget is None:
                 # Create the dockwidget (after translation) and keep reference
                 self.dockwidget = ParallelLineConstructionDockWidget()
 
@@ -232,3 +237,29 @@ class ParallelLineConstruction:
             # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
+
+            self.previous_map_tool = self.iface.mapCanvas().mapTool()
+            self.my_map_tool = QgsMapToolEmitPoint(self.iface.mapCanvas())
+            self.my_map_tool.canvasClicked.connect(self.manage_click)
+            self.iface.mapCanvas().setMapTool(self.my_map_tool)
+
+            self.iface.mapCanvas().xyCoordinates.connect(self.update_coordinates)
+
+    def update_coordinates(self, pos):
+        self.dockwidget.x_coord.setText("{:0.0f}".format(pos.x()))
+        self.dockwidget.y_coord.setText("{:0.0f}".format(pos.y()))
+
+    def manage_click(self, current_pos, clicked_button):
+        if clicked_button == Qt.LeftButton:
+            # self.dockwidget.remarks.setText("Clicked on {:0.0f} - {:0.0f}".format(current_pos.x(), current_pos.y()))
+            new_map_tool = QgsMapToolIdentify(self.iface.mapCanvas())
+            #self.iface.mapCanvas().setMapTool(new_map_tool)
+            result = new_map_tool.identify(current_pos.x(), current_pos.y(), QgsMapToolIdentify.ActiveLayer)
+            self.dockwidget.remarks.setText("x:{}\ny:{}\n\nresult:{}\n".format(current_pos.x(), current_pos.y(), str(result)))
+            #self.iface.mapCanvas().setMapTool(self.my_map_tool)
+
+        if clicked_button == Qt.RightButton:
+            # reset to the previous mapTool
+            self.iface.mapCanvas().setMapTool(self.previous_map_tool)
+            # clean remove myMapTool and relative handlers
+            self.my_map_tool = None

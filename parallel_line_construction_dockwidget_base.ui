@@ -6,21 +6,47 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>232</width>
-    <height>141</height>
+    <width>761</width>
+    <height>693</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Parallel Line Construction</string>
   </property>
   <widget class="QWidget" name="dockWidgetContents">
-   <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
      <widget class="QLabel" name="label">
       <property name="text">
-       <string>Replace this QLabel
-with the desired
-plugin content.</string>
+       <string>x-Coordinate</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLineEdit" name="x_coord">
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_2">
+      <property name="text">
+       <string>y-Coordinate</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLineEdit" name="y_coord">
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QTextEdit" name="remarks">
+      <property name="readOnly">
+       <bool>true</bool>
       </property>
      </widget>
     </item>
