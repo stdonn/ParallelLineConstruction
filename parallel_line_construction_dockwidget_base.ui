@@ -50,9 +50,27 @@
       </property>
      </widget>
     </item>
+    <item>
+     <widget class="QgsColorButton" name="mColorButton"/>
+    </item>
+    <item>
+     <widget class="QgsDateTimeEdit" name="mDateTimeEdit"/>
+    </item>
    </layout>
   </widget>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>QgsColorButton</class>
+   <extends>QToolButton</extends>
+   <header>qgscolorbutton.h</header>
+  </customwidget>
+  <customwidget>
+   <class>QgsDateTimeEdit</class>
+   <extends>QDateTimeEdit</extends>
+   <header>qgsdatetimeedit.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

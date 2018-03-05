@@ -25,7 +25,8 @@
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QAction
-from qgis.gui import QgsMapToolEmitPoint, QgsMapToolIdentify
+from qgis.gui import QgsMapToolEmitPoint
+from qgis.core import QgsProject, QgsMapLayer, QgsWkbTypes
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -245,21 +246,67 @@ class ParallelLineConstruction:
 
             self.iface.mapCanvas().xyCoordinates.connect(self.update_coordinates)
 
+            self.start_line_construction()
+
     def update_coordinates(self, pos):
         self.dockwidget.x_coord.setText("{:0.0f}".format(pos.x()))
         self.dockwidget.y_coord.setText("{:0.0f}".format(pos.y()))
 
     def manage_click(self, current_pos, clicked_button):
         if clicked_button == Qt.LeftButton:
-            # self.dockwidget.remarks.setText("Clicked on {:0.0f} - {:0.0f}".format(current_pos.x(), current_pos.y()))
-            new_map_tool = QgsMapToolIdentify(self.iface.mapCanvas())
+            #self.dockwidget.remarks.setText("Clicked on {:0.0f} - {:0.0f}".format(current_pos.x(), current_pos.y()))
+            #new_map_tool = QgsMapToolIdentify(self.iface.mapCanvas())
             #self.iface.mapCanvas().setMapTool(new_map_tool)
-            result = new_map_tool.identify(current_pos.x(), current_pos.y(), QgsMapToolIdentify.ActiveLayer)
-            self.dockwidget.remarks.setText("x:{}\ny:{}\n\nresult:{}\n".format(current_pos.x(), current_pos.y(), str(result)))
+            #result = new_map_tool.identify(current_pos.x(), current_pos.y(), QgsMapToolIdentify.ActiveLayer)
+            #self.dockwidget.remarks.setText("x:{}\ny:{}\n\nresult:{}\n".format(current_pos.x(), current_pos.y(), str(result)))
             #self.iface.mapCanvas().setMapTool(self.my_map_tool)
+            self.start_line_construction()
 
         if clicked_button == Qt.RightButton:
             # reset to the previous mapTool
             self.iface.mapCanvas().setMapTool(self.previous_map_tool)
             # clean remove myMapTool and relative handlers
             self.my_map_tool = None
+
+    def start_line_construction(self):
+        # names for Layer Types
+        LayerType = {
+            QgsMapLayer.VectorLayer: "Vektor Layer",
+            QgsMapLayer.RasterLayer: "Raster Layer",
+            QgsMapLayer.PluginLayer: "Plugin Layer"
+        }
+
+        GeometryTypes = {
+
+        }
+        
+        layers = QgsProject.instance().mapLayers()
+        text = "Found {} layers in the map".format(len(layers))
+        for layer in layers:
+            text += "\n{} - type: {}".format(layers[layer].name(), LayerType[layers[layer].type()])
+            if layers[layer].type() == 0:
+                text += "\nGeometryType: {}".format(layers[layer].geometryType())
+                if layers[layer].geometryType() == "line":
+                    text += "\tThis is a line geometry!!! Yepeah..."
+            text += "\n\tGot {} selected features".format(len(layers[layer].selectedFeatures()))
+
+        active_layer = self.iface.activeLayer()
+        if active_layer is None:
+            text += "\n\nNo layer selected"
+        else:
+            text += "\n\n{}\n".format(active_layer.name())
+            selected_features = self.iface.activeLayer().selectedFeatures()
+            text += "Got {} selected features".format(len(selected_features))
+            # for i in selected_features:
+            #    attributes = i.attributeMap()
+            #    for (k, attr) in attributes.iteritems():
+            #        text += "{}: {}\n".format(k, attr)
+        self.dockwidget.remarks.setText(text)
+
+# for information, iterator over feature and attributes:
+#
+# features = iface.activeLayer().getFeatures()
+# print(str([iface.activeLayer().attributeDisplayName(i) for i in iface.activeLayer().attributeList()]))
+# for feature in features:
+#     print(str([attr for attr in feature]))
+#     #print([(iface.activeLayer().attributeDisplayName(i), feature[i]) for i in iface.activeLayer().attributeList()])

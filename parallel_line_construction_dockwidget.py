@@ -32,7 +32,6 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
 
 
 class ParallelLineConstructionDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
-
     closingPlugin = pyqtSignal()
 
     def __init__(self, parent=None):
