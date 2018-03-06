@@ -4,13 +4,12 @@ from typing import List
 
 from PyQt5.QtCore import QAbstractTableModel, QModelIndex, QRectF, QSize, QVariant, Qt
 from PyQt5.QtGui import QBrush, QColor, QPainter, QPen
-from PyQt5.QtSvg import QSvgRenderer
-from PyQt5.QtWidgets import QCheckBox, QStyledItemDelegate, QStyleOptionViewItem, QWidget
+from PyQt5.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem, QWidget
 
 from qgis.core import QgsMessageLog
 
 
-class HorizonConstructData():
+class HorizonConstructData:
     def __init__(self, construct_horizon=True, base_horizon=False, name="unknown", thickness=1,
                  color=QColor(255, 255, 255)):
         self.__data = [None, None, None, None, None]
@@ -86,10 +85,7 @@ class HorizonConstructModel(QAbstractTableModel):
         if role == Qt.DisplayRole and orientation == Qt.Horizontal:
             if -1 < section < len(self.header_labels):
                 return self.header_labels[section]
-        return QAbstractTableModel.headerData(self, section, orientation, role)
-
-    def rowCount(self, parent):
-        return len(self.listdata)
+        return super(QAbstractTableModel, self).headerData(section, orientation, role)
 
     def columnCount(self, parent):
         return len(self.header_labels)
@@ -101,8 +97,15 @@ class HorizonConstructModel(QAbstractTableModel):
             return QVariant(self.listdata[index.row()][index.column()])
         elif index.column() == 3 and role == Qt.TextAlignmentRole:
             return Qt.AlignRight
-
         return QVariant()
+
+    def insertRow(self, row: int, parent: QModelIndex = QModelIndex()) -> None:
+        self.beginInsertRows(parent, row, row)
+        self.endInsertRows()
+
+    def rowCount(self, parent):
+        return len(self.listdata)
+
 
 
 class HorizonConstructDelegate(QStyledItemDelegate):

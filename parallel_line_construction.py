@@ -256,17 +256,10 @@ class ParallelLineConstruction:
                 data.append(HorizonConstructData(True, False, "so", 150, QColor(255, 255, 20)))
 
                 model = HorizonConstructModel(data)
-                # tableView = QTableView()
                 self.dockwidget.table_view.setModel(model)
                 self.dockwidget.table_view.setItemDelegate(HorizonConstructDelegate())
                 self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
                 self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-                #self.dockwidget.table_view.setEditTriggers(
-                #    QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked)
-                #self.dockwidget.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
-                # self.dockwidget.table_view.setMinimumSize(240, 4 * 31)
-                # self.dockwidget.table_view.setMaximumSize(240, 4 * 31)
-                # self.dockwidget.table_view.show()
             except Exception as e:
                 self.exeption_handling(e)
 
