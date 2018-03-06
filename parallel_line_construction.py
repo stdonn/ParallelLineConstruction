@@ -23,17 +23,21 @@
 """
 
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, Qt
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QAction
+from PyQt5.QtGui import QIcon, QColor
+from PyQt5.QtWidgets import QAction, QHeaderView
+from qgis.core import QgsProject, QgsMapLayer, QgsMessageLog
 from qgis.gui import QgsMapToolEmitPoint
-from qgis.core import QgsProject, QgsMapLayer, QgsWkbTypes
 
 # Initialize Qt resources from file resources.py
-from .resources import *
+from .resources_rc import *
 
 # Import the code for the DockWidget
 from .parallel_line_construction_dockwidget import ParallelLineConstructionDockWidget
+from .HorizonConstruct import HorizonConstructData, HorizonConstructDelegate, HorizonConstructModel
+
 import os.path
+import sys
+import traceback
 
 
 class ParallelLineConstruction:
@@ -74,13 +78,12 @@ class ParallelLineConstruction:
         self.toolbar = self.iface.addToolBar(u'ParallelLineConstruction')
         self.toolbar.setObjectName(u'ParallelLineConstruction')
 
-        #print "** INITIALIZING ParallelLineConstruction"
+        # print "** INITIALIZING ParallelLineConstruction"
 
         self.pluginIsActive = False
         self.dockwidget = None
         self.my_map_tool = None
         self.previous_map_tool = None
-
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -97,18 +100,17 @@ class ParallelLineConstruction:
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('ParallelLineConstruction', message)
 
-
     def add_action(
-        self,
-        icon_path,
-        text,
-        callback,
-        enabled_flag=True,
-        add_to_menu=True,
-        add_to_toolbar=True,
-        status_tip=None,
-        whats_this=None,
-        parent=None):
+            self,
+            icon_path,
+            text,
+            callback,
+            enabled_flag=True,
+            add_to_menu=True,
+            add_to_toolbar=True,
+            status_tip=None,
+            whats_this=None,
+            parent=None):
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -171,7 +173,6 @@ class ParallelLineConstruction:
 
         return action
 
-
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
@@ -182,12 +183,12 @@ class ParallelLineConstruction:
             callback=self.run,
             parent=self.iface.mainWindow())
 
-    #--------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
 
-        #print "** CLOSING ParallelLineConstruction"
+        # print "** CLOSING ParallelLineConstruction"
 
         # disconnects
         self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
@@ -200,11 +201,10 @@ class ParallelLineConstruction:
 
         self.pluginIsActive = False
 
-
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
 
-        #print "** UNLOAD ParallelLineConstruction"
+        # print "** UNLOAD ParallelLineConstruction"
 
         for action in self.actions:
             self.iface.removePluginVectorMenu(
@@ -214,7 +214,7 @@ class ParallelLineConstruction:
         # remove the toolbar
         del self.toolbar
 
-    #--------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
     def run(self):
         """Run method that loads and starts the plugin"""
@@ -222,7 +222,7 @@ class ParallelLineConstruction:
         if not self.pluginIsActive:
             self.pluginIsActive = True
 
-            #print "** STARTING ParallelLineConstruction"
+            # print "** STARTING ParallelLineConstruction"
 
             # dockwidget may not exist if:
             #    first run of plugin
@@ -248,18 +248,40 @@ class ParallelLineConstruction:
 
             self.start_line_construction()
 
+            try:
+                data = list()
+                data.append(HorizonConstructData(True, False, "mo", 70, QColor(10, 255, 20)))
+                data.append(HorizonConstructData(True, False, "mm", 100, QColor(10, 150, 20)))
+                data.append(HorizonConstructData(True, False, "msadfsdfsdfsd", 110, QColor(10, 100, 20)))
+                data.append(HorizonConstructData(True, False, "so", 150, QColor(255, 255, 20)))
+
+                model = HorizonConstructModel(data)
+                # tableView = QTableView()
+                self.dockwidget.table_view.setModel(model)
+                self.dockwidget.table_view.setItemDelegate(HorizonConstructDelegate())
+                self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+                self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+                #self.dockwidget.table_view.setEditTriggers(
+                #    QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked)
+                #self.dockwidget.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
+                # self.dockwidget.table_view.setMinimumSize(240, 4 * 31)
+                # self.dockwidget.table_view.setMaximumSize(240, 4 * 31)
+                # self.dockwidget.table_view.show()
+            except Exception as e:
+                self.exeption_handling(e)
+
     def update_coordinates(self, pos):
         self.dockwidget.x_coord.setText("{:0.0f}".format(pos.x()))
         self.dockwidget.y_coord.setText("{:0.0f}".format(pos.y()))
 
     def manage_click(self, current_pos, clicked_button):
         if clicked_button == Qt.LeftButton:
-            #self.dockwidget.remarks.setText("Clicked on {:0.0f} - {:0.0f}".format(current_pos.x(), current_pos.y()))
-            #new_map_tool = QgsMapToolIdentify(self.iface.mapCanvas())
-            #self.iface.mapCanvas().setMapTool(new_map_tool)
-            #result = new_map_tool.identify(current_pos.x(), current_pos.y(), QgsMapToolIdentify.ActiveLayer)
-            #self.dockwidget.remarks.setText("x:{}\ny:{}\n\nresult:{}\n".format(current_pos.x(), current_pos.y(), str(result)))
-            #self.iface.mapCanvas().setMapTool(self.my_map_tool)
+            # self.dockwidget.remarks.setText("Clicked on {:0.0f} - {:0.0f}".format(current_pos.x(), current_pos.y()))
+            # new_map_tool = QgsMapToolIdentify(self.iface.mapCanvas())
+            # self.iface.mapCanvas().setMapTool(new_map_tool)
+            # result = new_map_tool.identify(current_pos.x(), current_pos.y(), QgsMapToolIdentify.ActiveLayer)
+            # self.dockwidget.remarks.setText("x:{}\ny:{}\n\nresult:{}\n".format(current_pos.x(), current_pos.y(), str(result)))
+            # self.iface.mapCanvas().setMapTool(self.my_map_tool)
             self.start_line_construction()
 
         if clicked_button == Qt.RightButton:
@@ -269,39 +291,53 @@ class ParallelLineConstruction:
             self.my_map_tool = None
 
     def start_line_construction(self):
-        # names for Layer Types
-        LayerType = {
-            QgsMapLayer.VectorLayer: "Vektor Layer",
-            QgsMapLayer.RasterLayer: "Raster Layer",
-            QgsMapLayer.PluginLayer: "Plugin Layer"
-        }
+        try:
+            # names for Layer Types
+            LayerType = {
+                QgsMapLayer.VectorLayer: "Vektor Layer",
+                QgsMapLayer.RasterLayer: "Raster Layer",
+                QgsMapLayer.PluginLayer: "Plugin Layer"
+            }
 
-        GeometryTypes = {
+            GeometryTypes = {
 
-        }
-        
-        layers = QgsProject.instance().mapLayers()
-        text = "Found {} layers in the map".format(len(layers))
-        for layer in layers:
-            text += "\n{} - type: {}".format(layers[layer].name(), LayerType[layers[layer].type()])
-            if layers[layer].type() == 0:
-                text += "\nGeometryType: {}".format(layers[layer].geometryType())
-                if layers[layer].geometryType() == "line":
-                    text += "\tThis is a line geometry!!! Yepeah..."
-            text += "\n\tGot {} selected features".format(len(layers[layer].selectedFeatures()))
+            }
 
-        active_layer = self.iface.activeLayer()
-        if active_layer is None:
-            text += "\n\nNo layer selected"
-        else:
-            text += "\n\n{}\n".format(active_layer.name())
-            selected_features = self.iface.activeLayer().selectedFeatures()
-            text += "Got {} selected features".format(len(selected_features))
-            # for i in selected_features:
-            #    attributes = i.attributeMap()
-            #    for (k, attr) in attributes.iteritems():
-            #        text += "{}: {}\n".format(k, attr)
-        self.dockwidget.remarks.setText(text)
+            layers = QgsProject.instance().mapLayers()
+            text = "Found {} layers in the map".format(len(layers))
+            for layer in layers:
+                text += "\n{} - type: {}".format(layers[layer].name(), LayerType[layers[layer].type()])
+                if layers[layer].type() == 0:
+                    text += "\nGeometryType: {}".format(layers[layer].geometryType())
+                    if layers[layer].geometryType() == "line":
+                        text += "\tThis is a line geometry!!! Yepeah..."
+                text += "\n\tGot {} selected features".format(len(layers[layer].selectedFeatures()))
+
+            active_layer = self.iface.activeLayer()
+            if active_layer is None:
+                text += "\n\nNo layer selected"
+            else:
+                text += "\n\n{}\n".format(active_layer.name())
+                selected_features = self.iface.activeLayer().selectedFeatures()
+                text += "Got {} selected features".format(len(selected_features))
+                # for i in selected_features:
+                #    attributes = i.attributeMap()
+                #    for (k, attr) in attributes.iteritems():
+                #        text += "{}: {}\n".format(k, attr)
+            self.dockwidget.remarks.setText(text)
+
+        except Exception as e:
+            self.exeption_handling(e)
+
+    def exeption_handling(self, e: Exception) -> None:
+        _, _, exc_traceback = sys.exc_info()
+        text = "Error Message:\n{}\nTraceback:\n{}".format(str(e), '\n'.join(traceback.format_tb(exc_traceback)))
+        # text = "Error Message:\nNone\nTraceback:\n{}".format(traceback.print_exc())
+        self.iface.messageBar().pushMessage("Error",
+                                            "An exception occurred during the process. " +
+                                            "For more details, please take a look to the log windows.",
+                                            level=2)
+        QgsMessageLog.logMessage(text, level=2)
 
 # for information, iterator over feature and attributes:
 #
