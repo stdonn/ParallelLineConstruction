@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>363</width>
+    <width>598</width>
     <height>596</height>
    </rect>
   </property>
@@ -97,7 +97,7 @@
          <string>Save to File</string>
         </property>
         <property name="icon">
-         <iconset resource="resources.qrc">
+         <iconset>
           <normaloff>:/plugins/parallel_line_construction/images/save.svg</normaloff>:/plugins/parallel_line_construction/images/save.svg</iconset>
         </property>
        </widget>
@@ -109,7 +109,7 @@
         </property>
         <property name="icon">
          <iconset>
-          <normaloff>images/folder_open.svg</normaloff>images/folder_open.svg</iconset>
+          <normaloff>:/plugins/parallel_line_construction/images/folder_open.svg</normaloff>:/plugins/parallel_line_construction/images/folder_open.svg</iconset>
         </property>
        </widget>
       </item>
@@ -130,7 +130,7 @@
            <string/>
           </property>
           <property name="icon">
-           <iconset resource="resources.qrc">
+           <iconset>
             <normaloff>:/plugins/parallel_line_construction/images/add.svg</normaloff>:/plugins/parallel_line_construction/images/add.svg</iconset>
           </property>
          </widget>
@@ -147,7 +147,7 @@
            <string/>
           </property>
           <property name="icon">
-           <iconset resource="resources.qrc">
+           <iconset>
             <normaloff>:/plugins/parallel_line_construction/images/remove.svg</normaloff>:/plugins/parallel_line_construction/images/remove.svg</iconset>
           </property>
          </widget>
@@ -164,8 +164,8 @@
            <string/>
           </property>
           <property name="icon">
-           <iconset resource="resources.qrc">
-            <normaloff>:/plugins/parallel_line_construction/images/down.svg</normaloff>:/plugins/parallel_line_construction/images/down.svg</iconset>
+           <iconset>
+            <normaloff>:/plugins/parallel_line_construction/images/up.svg</normaloff>:/plugins/parallel_line_construction/images/up.svg</iconset>
           </property>
          </widget>
         </item>
@@ -181,8 +181,8 @@
            <string/>
           </property>
           <property name="icon">
-           <iconset resource="resources.qrc">
-            <normaloff>:/plugins/parallel_line_construction/images/up.svg</normaloff>:/plugins/parallel_line_construction/images/up.svg</iconset>
+           <iconset>
+            <normaloff>:/plugins/parallel_line_construction/images/down.svg</normaloff>:/plugins/parallel_line_construction/images/down.svg</iconset>
           </property>
          </widget>
         </item>
@@ -203,7 +203,7 @@
        <string>Start Construction</string>
       </property>
       <property name="icon">
-       <iconset resource="resources.qrc">
+       <iconset>
         <normaloff>:/plugins/parallel_line_construction/images/icon.svg</normaloff>:/plugins/parallel_line_construction/images/icon.svg</iconset>
       </property>
      </widget>
@@ -221,11 +221,8 @@
   <tabstop>add_unit</tabstop>
   <tabstop>remove_unit</tabstop>
   <tabstop>move_unit_up</tabstop>
-  <tabstop>move_unit_down</tabstop>
   <tabstop>start_construction</tabstop>
  </tabstops>
- <resources>
-  <include location="resources.qrc"/>
- </resources>
+ <resources/>
  <connections/>
 </ui>

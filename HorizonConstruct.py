@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 
-from typing import List
+from typing import Any, List
 
-from PyQt5.QtCore import QAbstractTableModel, QModelIndex, QRectF, QSize, QVariant, Qt
+from PyQt5.QtCore import QAbstractTableModel, QModelIndex, QRect, QRectF, QSize, QVariant, Qt
 from PyQt5.QtGui import QBrush, QColor, QPainter, QPen
-from PyQt5.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem, QWidget
+from PyQt5.QtWidgets import QCheckBox, QLabel, QStyledItemDelegate, QStyleOptionViewItem, QWidget
 
 from qgis.core import QgsMessageLog
+from qgis.gui import QgsColorButton
 
 
 class HorizonConstructData:
@@ -30,6 +31,19 @@ class HorizonConstructData:
 
     def __getitem__(self, item: int or List[int]) -> object or List:
         return self.__data[item]
+
+    def __setitem__(self, key: int, value: Any) -> None:
+        if not (0 <= key < len(self.__data)):
+            raise IndexError("Wrong key used")
+        if key in (0, 1) and not isinstance(value, bool):
+            raise TypeError("value must be of type bool")
+        if key == 2 and not isinstance(value, str):
+            raise TypeError("value must be of type str")
+        if key == 3 and not isinstance(value, int):
+            raise TypeError("value must be of type int")
+        if key == 4 and not isinstance(value, QColor):
+            raise TypeError("value must be of type QColor")
+        self.__data[key] = value
 
     @property
     def base_horizon(self) -> bool:
@@ -78,34 +92,89 @@ class HorizonConstructModel(QAbstractTableModel):
         :param data: import data
         """
         QAbstractTableModel.__init__(self, parent, *args)
-        self.listdata = data
-        self.header_labels = ["build", "base", "unit name", "thickness", "color"]
+        self.__listdata = data
+        bases = [x.base_horizon for x in data]
+        if not True in bases and len(data) > 0:
+            self.__listdata[0][1] = True
+        elif len(data) > 0:
+            first = bases.index(True)
+            for dat in self.__listdata:
+                dat.base_horizon = False
+            self.__listdata[first].base_horizon = True
 
-    def headerData(self, section:int, orientation:Qt.Orientation, role:int=Qt.DisplayRole):
+        self.__header_labels = ["build", "base", "unit name", "thickness", "color"]
+
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole):
         if role == Qt.DisplayRole and orientation == Qt.Horizontal:
-            if -1 < section < len(self.header_labels):
-                return self.header_labels[section]
+            if -1 < section < len(self.__header_labels):
+                return self.__header_labels[section]
         return super(QAbstractTableModel, self).headerData(section, orientation, role)
 
     def columnCount(self, parent):
-        return len(self.header_labels)
+        return len(self.__header_labels)
 
     def data(self, index, role):
         if not index.isValid():
             return QVariant()
-        elif role == Qt.DisplayRole:
-            return QVariant(self.listdata[index.row()][index.column()])
+        elif role in (Qt.DisplayRole, Qt.EditRole):
+            return QVariant(self.__listdata[index.row()][index.column()])
         elif index.column() == 3 and role == Qt.TextAlignmentRole:
             return Qt.AlignRight
         return QVariant()
 
-    def insertRow(self, row: int, parent: QModelIndex = QModelIndex()) -> None:
-        self.beginInsertRows(parent, row, row)
+    def flags(self, index: QModelIndex) -> Qt.ItemFlags:
+        if not index.isValid():
+            return Qt.ItemIsEnabled
+        return Qt.ItemIsEditable | super(QAbstractTableModel, self).flags(index)
+
+    def insertRow(self, row: int, data: HorizonConstructData) -> bool:
+        self.beginInsertRows(QModelIndex(), row, row)
+        if row < 0:
+            self.endInsertRows()
+            return False
+        self.__listdata.insert(row, data)
         self.endInsertRows()
+        return True
 
-    def rowCount(self, parent):
-        return len(self.listdata)
+    def moveRowUp(self, row: int):
+        if 0 < row < self.rowCount():
+            self.beginMoveRows(QModelIndex(), row, row, QModelIndex(), row - 1)
+            item = self.__listdata.pop(row)
+            self.__listdata.insert(row - 1, item)
+            self.endMoveRows()
 
+    def moveRowDown(self, row: int):
+        if 0 <= row < self.rowCount() - 1:
+            self.beginMoveRows(QModelIndex(), row, row, QModelIndex(), row + 2)
+            item = self.__listdata.pop(row)
+            self.__listdata.insert(row + 1, item)
+            self.endMoveRows()
+
+    def rowCount(self, parent: QModelIndex = ...) -> Any:
+        return len(self.__listdata)
+
+    def removeRow(self, row: int) -> bool:
+        self.beginRemoveRows(QModelIndex(), row, row)
+        if 0 <= row < self.rowCount():
+            del self.__listdata[row]
+            self.endRemoveRows()
+            return True
+        self.endRemoveRows()
+        return False
+
+    def setData(self, index: QModelIndex, value: Any, role: int = Qt.EditRole) -> bool:
+        if not index.isValid():
+            return False
+        if role == Qt.EditRole:
+            if index.column() == 1:
+                if value:
+                    for i in range(self.rowCount()):
+                        self.__listdata[i][index.column()] = False
+                elif self.__listdata[index.row()].base_horizon != False:
+                    self.__listdata[0][index.column()] = True
+            self.__listdata[index.row()][index.column()] = value
+            self.dataChanged.emit(index, index, [Qt.EditRole])
+        return True
 
 
 class HorizonConstructDelegate(QStyledItemDelegate):
@@ -113,9 +182,55 @@ class HorizonConstructDelegate(QStyledItemDelegate):
         super(HorizonConstructDelegate, self).__init__(*args, **kwargs)
         self.__checkbox_size = QSize(15, 15)
         self.__color_size = QSize(40, 20)
+        self.__label_tmp = QLabel("")
+
+    def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> QWidget:
+        if index.isValid():
+            if index.column() in (0, 1):
+                checkbox = QCheckBox(parent)
+                checkbox.setFocusPolicy(Qt.StrongFocus)
+                return checkbox
+            if index.column() == 4:
+                color_button = QgsColorButton(parent)
+                color_button.setFocusPolicy(Qt.StrongFocus)
+                return color_button
+        return super().createEditor(parent, option, index)
+
+    def setEditorData(self, editor: QWidget, index: QModelIndex):
+        if index.isValid():
+            if index.column() in (0, 1) and isinstance(index.data(), bool):
+                editor.setChecked(index.data())
+                return
+            if index.column() == 4 and isinstance(index.data(), QColor):
+                editor.setColor(index.data())
+                return
+        super().setEditorData(editor, index)
+
+    def setModelData(self, editor: QWidget, model: QAbstractTableModel, index: QModelIndex) -> None:
+        if index.isValid():
+            if index.column() in (0, 1):
+                model.setData(index, editor.isChecked())
+                return
+            if index.column() == 4:
+                model.setData(index, editor.color())
+                return
+        super().setModelData(editor, model, index)
+
+    def updateEditorGeometry(self, editor: QWidget, option:QStyleOptionViewItem, index: QModelIndex):
+        if index.isValid():
+            if isinstance(editor, QCheckBox):
+                posx = int(option.rect.x() + option.rect.width() / 2 - editor.sizeHint().width() / 2)
+                posy = int(option.rect.y() + option.rect.height() / 2 - editor.sizeHint().height() / 2)
+                editor.setGeometry(QRect(posx, posy, editor.sizeHint().width(), editor.sizeHint().height()))
+                return
+            if index.column() == 4:
+                editor.setGeometry(option.rect)
+        super().updateEditorGeometry(editor, option, index)
 
     def paint(self, painter, option, index):
         index_data = index.data()
+
+        # set the checkboxes for the boolean values
         if isinstance(index_data, bool):
             painter.save()
             painter.setRenderHint(QPainter.Antialiasing, True)
@@ -142,6 +257,7 @@ class HorizonConstructDelegate(QStyledItemDelegate):
             painter.drawRect(x, y, width, height)
             painter.restore()
 
+        # set the color rect
         elif isinstance(index_data, QColor):
             painter.save()
             painter.setRenderHint(QPainter.Antialiasing, True)
@@ -162,8 +278,9 @@ class HorizonConstructDelegate(QStyledItemDelegate):
             painter.drawRect(x, y, width, height)
             painter.restore()
 
+        # set the thickness label
         elif isinstance(index_data, int):
-            text = str(index_data) + " m"
+            text = "{:,} m".format(index_data).replace(',', ' ')
             rect = QRectF(option.rect)
             rect.setWidth(rect.width() - 5)
             painter.drawText(rect, Qt.AlignRight | Qt.AlignVCenter, text)
@@ -176,4 +293,9 @@ class HorizonConstructDelegate(QStyledItemDelegate):
             return self.__checkbox_size
         if isinstance(index.data(), QColor):
             return self.__color_size
+        if isinstance(index.data(), int):
+            self.__label_tmp.setText("{:,} m".format(index.data()).replace(',', ' '))
+            size = self.__label_tmp.sizeHint()
+            size.setWidth(size.width() + 5)
+            return size
         return super().sizeHint(option, index)

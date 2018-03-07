@@ -24,12 +24,12 @@
 
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, Qt
 from PyQt5.QtGui import QIcon, QColor
-from PyQt5.QtWidgets import QAction, QHeaderView
+from PyQt5.QtWidgets import QAction, QHeaderView, QTableView
 from qgis.core import QgsProject, QgsMapLayer, QgsMessageLog
 from qgis.gui import QgsMapToolEmitPoint
 
 # Initialize Qt resources from file resources.py
-from .resources_rc import *
+from .resources import *
 
 # Import the code for the DockWidget
 from .parallel_line_construction_dockwidget import ParallelLineConstructionDockWidget
@@ -84,6 +84,7 @@ class ParallelLineConstruction:
         self.dockwidget = None
         self.my_map_tool = None
         self.previous_map_tool = None
+        self.model = None
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -239,24 +240,31 @@ class ParallelLineConstruction:
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
 
-            self.previous_map_tool = self.iface.mapCanvas().mapTool()
-            self.my_map_tool = QgsMapToolEmitPoint(self.iface.mapCanvas())
-            self.my_map_tool.canvasClicked.connect(self.manage_click)
-            self.iface.mapCanvas().setMapTool(self.my_map_tool)
+            #self.previous_map_tool = self.iface.mapCanvas().mapTool()
+            #self.my_map_tool = QgsMapToolEmitPoint(self.iface.mapCanvas())
+            #self.my_map_tool.canvasClicked.connect(self.manage_click)
+            #self.iface.mapCanvas().setMapTool(self.my_map_tool)
 
-            self.iface.mapCanvas().xyCoordinates.connect(self.update_coordinates)
+            #self.iface.mapCanvas().xyCoordinates.connect(self.update_coordinates)
+            #self.start_line_construction()
 
-            self.start_line_construction()
+            self.dockwidget.start_construction.setEnabled(False)
+
+            self.dockwidget.add_unit.clicked.connect(self.add_unit)
+            self.dockwidget.remove_unit.clicked.connect(self.remove_unit)
+            self.dockwidget.move_unit_up.clicked.connect(self.move_unit_up)
+            self.dockwidget.move_unit_down.clicked.connect(self.move_unit_down)
 
             try:
+                QgsMessageLog.logMessage("\n\n{}\n\n".format(100*"="), level=0)
                 data = list()
                 data.append(HorizonConstructData(True, False, "mo", 70, QColor(10, 255, 20)))
-                data.append(HorizonConstructData(True, False, "mm", 100, QColor(10, 150, 20)))
-                data.append(HorizonConstructData(True, False, "msadfsdfsdfsd", 110, QColor(10, 100, 20)))
+                data.append(HorizonConstructData(True, False, "mm", 1000, QColor(10, 150, 20)))
+                data.append(HorizonConstructData(True, False, "msadfsdfsdfsd", 1234567, QColor(10, 100, 20)))
                 data.append(HorizonConstructData(True, False, "so", 150, QColor(255, 255, 20)))
 
-                model = HorizonConstructModel(data)
-                self.dockwidget.table_view.setModel(model)
+                self.model = HorizonConstructModel(data)
+                self.dockwidget.table_view.setModel(self.model)
                 self.dockwidget.table_view.setItemDelegate(HorizonConstructDelegate())
                 self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
                 self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
@@ -331,6 +339,34 @@ class ParallelLineConstruction:
                                             "For more details, please take a look to the log windows.",
                                             level=2)
         QgsMessageLog.logMessage(text, level=2)
+
+    def add_unit(self) -> None:
+        self.model.insertRow(self.model.rowCount(), HorizonConstructData())
+
+    def remove_unit(self) -> None:
+        #table = QTableView()
+        selection = self.dockwidget.table_view.selectionModel()
+        if not selection.hasSelection():
+            return
+
+        row = selection.selectedIndexes()[0].row()
+        self.model.removeRow(row)
+
+    def move_unit_down(self) -> None:
+        selection = self.dockwidget.table_view.selectionModel()
+        if not selection.hasSelection():
+            return
+
+        row = selection.selectedIndexes()[0].row()
+        self.model.moveRowDown(row)
+
+    def move_unit_up(self) -> None:
+        selection = self.dockwidget.table_view.selectionModel()
+        if not selection.hasSelection():
+            return
+
+        row = selection.selectedIndexes()[0].row()
+        self.model.moveRowUp(row)
 
 # for information, iterator over feature and attributes:
 #
