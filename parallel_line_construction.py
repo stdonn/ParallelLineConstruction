@@ -24,8 +24,8 @@
 
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, Qt
 from PyQt5.QtGui import QIcon, QColor
-from PyQt5.QtWidgets import QAction, QHeaderView, QTableView
-from qgis.core import QgsProject, QgsMapLayer, QgsMessageLog
+from PyQt5.QtWidgets import QAction, QFileDialog, QHeaderView
+from qgis.core import QgsProject, QgsMapLayer, QgsMessageLog, QgsWkbTypes
 from qgis.gui import QgsMapToolEmitPoint
 
 # Initialize Qt resources from file resources.py
@@ -34,7 +34,12 @@ from .resources import *
 # Import the code for the DockWidget
 from .parallel_line_construction_dockwidget import ParallelLineConstructionDockWidget
 from .HorizonConstruct import HorizonConstructData, HorizonConstructDelegate, HorizonConstructModel
+from .configure import *
 
+import io
+import json
+import numpy as np
+import numpy.linalg as la
 import os.path
 import sys
 import traceback
@@ -85,6 +90,10 @@ class ParallelLineConstruction:
         self.my_map_tool = None
         self.previous_map_tool = None
         self.model = None
+        self.active_layer = None
+        self.active_geometry = None
+        self.active_line = None
+        self.side = 0
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -240,23 +249,21 @@ class ParallelLineConstruction:
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
 
-            #self.previous_map_tool = self.iface.mapCanvas().mapTool()
-            #self.my_map_tool = QgsMapToolEmitPoint(self.iface.mapCanvas())
-            #self.my_map_tool.canvasClicked.connect(self.manage_click)
-            #self.iface.mapCanvas().setMapTool(self.my_map_tool)
-
-            #self.iface.mapCanvas().xyCoordinates.connect(self.update_coordinates)
-            #self.start_line_construction()
-
-            self.dockwidget.start_construction.setEnabled(False)
+            self.iface.currentLayerChanged.connect(self.on_current_layer_changed)
+            # set acitve_layer and run slot once at plugin start
+            self.active_layer = self.iface.activeLayer()
+            self.on_current_layer_changed(self.active_layer)
 
             self.dockwidget.add_unit.clicked.connect(self.add_unit)
             self.dockwidget.remove_unit.clicked.connect(self.remove_unit)
             self.dockwidget.move_unit_up.clicked.connect(self.move_unit_up)
             self.dockwidget.move_unit_down.clicked.connect(self.move_unit_down)
+            self.dockwidget.load_unit_table.clicked.connect(self.load_unit_table)
+            self.dockwidget.save_unit_table.clicked.connect(self.save_unit_table)
+            self.dockwidget.start_construction.clicked.connect(self.start_line_construction)
 
             try:
-                QgsMessageLog.logMessage("\n\n{}\n\n".format(100*"="), level=0)
+                QgsMessageLog.logMessage("\n\n{}\n\n".format(100 * "="), level=0)
                 data = list()
                 data.append(HorizonConstructData(True, False, "mo", 70, QColor(10, 255, 20)))
                 data.append(HorizonConstructData(True, False, "mm", 1000, QColor(10, 150, 20)))
@@ -270,65 +277,6 @@ class ParallelLineConstruction:
                 self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
             except Exception as e:
                 self.exeption_handling(e)
-
-    def update_coordinates(self, pos):
-        self.dockwidget.x_coord.setText("{:0.0f}".format(pos.x()))
-        self.dockwidget.y_coord.setText("{:0.0f}".format(pos.y()))
-
-    def manage_click(self, current_pos, clicked_button):
-        if clicked_button == Qt.LeftButton:
-            # self.dockwidget.remarks.setText("Clicked on {:0.0f} - {:0.0f}".format(current_pos.x(), current_pos.y()))
-            # new_map_tool = QgsMapToolIdentify(self.iface.mapCanvas())
-            # self.iface.mapCanvas().setMapTool(new_map_tool)
-            # result = new_map_tool.identify(current_pos.x(), current_pos.y(), QgsMapToolIdentify.ActiveLayer)
-            # self.dockwidget.remarks.setText("x:{}\ny:{}\n\nresult:{}\n".format(current_pos.x(), current_pos.y(), str(result)))
-            # self.iface.mapCanvas().setMapTool(self.my_map_tool)
-            self.start_line_construction()
-
-        if clicked_button == Qt.RightButton:
-            # reset to the previous mapTool
-            self.iface.mapCanvas().setMapTool(self.previous_map_tool)
-            # clean remove myMapTool and relative handlers
-            self.my_map_tool = None
-
-    def start_line_construction(self):
-        try:
-            # names for Layer Types
-            LayerType = {
-                QgsMapLayer.VectorLayer: "Vektor Layer",
-                QgsMapLayer.RasterLayer: "Raster Layer",
-                QgsMapLayer.PluginLayer: "Plugin Layer"
-            }
-
-            GeometryTypes = {
-
-            }
-
-            layers = QgsProject.instance().mapLayers()
-            text = "Found {} layers in the map".format(len(layers))
-            for layer in layers:
-                text += "\n{} - type: {}".format(layers[layer].name(), LayerType[layers[layer].type()])
-                if layers[layer].type() == 0:
-                    text += "\nGeometryType: {}".format(layers[layer].geometryType())
-                    if layers[layer].geometryType() == "line":
-                        text += "\tThis is a line geometry!!! Yepeah..."
-                text += "\n\tGot {} selected features".format(len(layers[layer].selectedFeatures()))
-
-            active_layer = self.iface.activeLayer()
-            if active_layer is None:
-                text += "\n\nNo layer selected"
-            else:
-                text += "\n\n{}\n".format(active_layer.name())
-                selected_features = self.iface.activeLayer().selectedFeatures()
-                text += "Got {} selected features".format(len(selected_features))
-                # for i in selected_features:
-                #    attributes = i.attributeMap()
-                #    for (k, attr) in attributes.iteritems():
-                #        text += "{}: {}\n".format(k, attr)
-            self.dockwidget.remarks.setText(text)
-
-        except Exception as e:
-            self.exeption_handling(e)
 
     def exeption_handling(self, e: Exception) -> None:
         _, _, exc_traceback = sys.exc_info()
@@ -344,7 +292,7 @@ class ParallelLineConstruction:
         self.model.insertRow(self.model.rowCount(), HorizonConstructData())
 
     def remove_unit(self) -> None:
-        #table = QTableView()
+        # table = QTableView()
         selection = self.dockwidget.table_view.selectionModel()
         if not selection.hasSelection():
             return
@@ -359,6 +307,8 @@ class ParallelLineConstruction:
 
         row = selection.selectedIndexes()[0].row()
         self.model.moveRowDown(row)
+        self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
 
     def move_unit_up(self) -> None:
         selection = self.dockwidget.table_view.selectionModel()
@@ -367,6 +317,167 @@ class ParallelLineConstruction:
 
         row = selection.selectedIndexes()[0].row()
         self.model.moveRowUp(row)
+        self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+
+    def load_unit_table(self):
+        file = QFileDialog.getOpenFileName(self.dockwidget, "Save to", QgsProject.instance().readPath("./"),
+                                           "JSON file (*.json);;All(*)")
+        file = file[0]
+        with open(file) as data_file:
+            data_loaded = json.load(data_file)
+
+        # parsing the data
+        model_data = list()
+        try:
+            keys = list(data_loaded.keys())
+            keys.sort()
+            for i in keys:
+                data = HorizonConstructData()
+                for j in data_loaded[i]:
+                    index = HorizonConstructData.get_header_index(j)
+                    if index == -1:
+                        raise ValueError("Unknown key: {}".format(str(j)))
+                    if j == "color":
+                        data_loaded[i][j] = QColor(data_loaded[i][j])
+                    data[index] = data_loaded[i][j]
+                model_data.append(data)
+
+        except Exception as e:
+            QgsMessageLog.logMessage("Could not load file (Exception: {}):\n{}".format(str(type(e)), str(e)), level=2)
+            return
+
+        for i in range(self.model.rowCount()):
+            self.model.removeRow(0)
+
+        for item in model_data:
+            self.model.insertRow(self.model.rowCount(), item)
+
+    def save_unit_table(self):
+        file = QFileDialog.getSaveFileName(self.dockwidget, "Save to", QgsProject.instance().readPath("./"),
+                                           "JSON file (*.json);;All(*)")
+        file = file[0]
+        if file != "":
+            out_dict = dict()
+            for i in range(self.model.rowCount()):
+                out_dict[i] = dict()
+                for j in range(self.model.columnCount()):
+                    name = HorizonConstructData.get_header_name(j)
+                    index = self.model.index(i, j)
+                    out_dict[i][name] = index.data(Qt.DisplayRole)
+                    if j == 4:
+                        out_dict[i][name] = out_dict[i][name].name()
+            with io.open(file, 'w', encoding='utf8') as outfile:
+                json_data = json.dumps(out_dict, indent=2, sort_keys=True, separators=(',', ': '), ensure_ascii=False)
+                outfile.write(json_data)
+
+    def on_current_layer_changed(self, map_layer: QgsMapLayer) -> None:
+        # QgsMessageLog.logMessage("on_current_layer_changed...", level=0)
+        if self.active_layer != None:
+            try:
+                self.active_layer.selectionChanged.disconnect()
+            except:
+                pass
+        self.active_layer = map_layer
+
+        # QgsMessageLog.logMessage("Test self.active_layer == None ({})".format(self.active_layer == None), level=0)
+        if (self.active_layer == None) or (self.active_layer.type() != QgsMapLayer.VectorLayer):
+            return
+
+        self.active_layer.selectionChanged.connect(self.on_active_layer_selection_changed)
+        self.parse_selection()
+
+    def on_active_layer_selection_changed(self):
+        self.parse_selection()
+
+    def parse_selection(self):
+        self.dockwidget.notifications.setText("")
+        if self.active_layer == None:
+            self.dockwidget.start_construction.setEnabled(False)
+        # else:
+        #    self.dockwidget.start_construction.setEnabled(True)
+
+        # QgsMessageLog.logMessage("parsing selection...", level=0)
+
+        geometry_type = QgsWkbTypes.geometryDisplayString(self.active_layer.geometryType())
+        selected_features = self.active_layer.selectedFeatures()
+
+        if len(selected_features) == 0 or geometry_type != "Line":
+            self.active_geometry = None
+            self.dockwidget.start_construction.setEnabled(False)
+            self.dockwidget.construct.setEnabled(False)
+            return
+
+        text = ""
+
+        if QgsWkbTypes.isMultiType(self.iface.activeLayer().wkbType()):
+            text += "This is line is stored as a multi part line. This tool only uses the first part, if more than one exists!\n\n"
+
+        if len(selected_features) > 1:
+            text += "Multiple features selected. Using only the first of this selection.\n\n"
+
+        self.active_geometry = selected_features[0].geometry()
+        # from qgis.core import QgsGeometry
+        # tmp = QgsGeometry()
+        if self.active_geometry.isEmpty():
+            self.dockwidget.notifications.setText("Selected an empty geometry!")
+            self.active_geometry = None
+            return
+
+        if self.active_geometry.isMultipart():
+            self.active_geometry = self.active_geometry.asGeometryCollection()[0]
+
+        line = self.active_geometry.asPolyline()
+        if len(line) < 2:
+            self.dockwidget.notifications.setText("Selected line has less than two points. Cannot use it.")
+            self.active_geometry = None
+            return
+
+        vertex = np.array(line[0])
+        dir  = np.array(line[-1]) - vertex
+        n = (-dir[1], dir[0])
+        self.active_line = (vertex, n)
+
+        self.dockwidget.start_construction.setEnabled(True)
+        self.dockwidget.notifications.setText(text)
+
+    def start_line_construction(self):
+        try:
+            self.previous_map_tool = self.iface.mapCanvas().mapTool()
+            self.my_map_tool = QgsMapToolEmitPoint(self.iface.mapCanvas())
+            self.my_map_tool.canvasClicked.connect(self.manage_click)
+            self.iface.mapCanvas().setMapTool(self.my_map_tool)
+            self.iface.mapCanvas().xyCoordinates.connect(self.update_coordinates)
+        except Exception as e:
+            self.exeption_handling(e)
+
+    def update_coordinates(self, pos):
+        text = "X: {:0.2f} - Y: {:0.2f}\n".format(pos.x(), pos.y())
+        P = np.array((pos.x(), pos.y()))
+        d1 = np.dot(P, self.active_line[1])
+        d2 = np.dot(self.active_line[0], self.active_line[1])
+
+        if d1 == d2:
+            text += "on the line"
+        elif d1 < d2:
+            text += "on the right side of the line"
+        else:
+            text += "on the left side of the line"
+
+        self.dockwidget.notifications.setText(text)
+
+    def manage_click(self, current_pos, clicked_button):
+        if clicked_button == Qt.LeftButton:
+            self.dockwidget.notifications.setText(
+                "Clicked on\nX: {:0.2f}\nY: {:0.2f}".format(current_pos.x(), current_pos.y()))
+
+        if clicked_button == Qt.RightButton:
+            self.dockwidget.notifications.setText("Nothing changed")
+        # reset to the previous mapTool
+        self.iface.mapCanvas().setMapTool(self.previous_map_tool)
+        # clean remove myMapTool and relative handlers
+        self.my_map_tool = None
+        self.iface.mapCanvas().xyCoordinates.disconnect(self.update_coordinates)
 
 # for information, iterator over feature and attributes:
 #
@@ -375,3 +486,17 @@ class ParallelLineConstruction:
 # for feature in features:
 #     print(str([attr for attr in feature]))
 #     #print([(iface.activeLayer().attributeDisplayName(i), feature[i]) for i in iface.activeLayer().attributeList()])
+
+# Type information:
+#
+# geometryType = self.iface.activeLayer().geometryType()
+# type = self.iface.activeLayer().wkbType()
+# selected_features = self.active_layer.selectedFeatures()
+#
+# text = "{}\n".format(self.iface.activeLayer().name())
+# text += "GeometryType: {}\n".format(QgsWkbTypes.geometryDisplayString(geometryType))
+# text += "WkbType: {}\n".format(QgsWkbTypes.displayString(type))
+# text += "hasZ:{} / hasM: {}\n".format(QgsWkbTypes.hasZ(type), QgsWkbTypes.hasM(type))
+# text += "isMultiType:{} / isSingleType: {}\n".format(QgsWkbTypes.isMultiType(type), QgsWkbTypes.isSingleType(type))
+# text += "Got {} selected features".format(len(selected_features))
+# text += "\nJSON-Geometry:\n\n{}".format(self.active_line_feature.geometry().asJson())

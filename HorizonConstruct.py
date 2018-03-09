@@ -11,6 +11,15 @@ from qgis.gui import QgsColorButton
 
 
 class HorizonConstructData:
+    # define header name class wide
+    __header_names = [
+        "contruct unit",
+        "base unit",
+        "name",
+        "thickness",
+        "color"
+    ]
+
     def __init__(self, construct_horizon=True, base_horizon=False, name="unknown", thickness=1,
                  color=QColor(255, 255, 255)):
         self.__data = [None, None, None, None, None]
@@ -85,6 +94,16 @@ class HorizonConstructData:
     def thickness(self, value: int) -> None:
         self.__data[3] = int(value)
 
+    @classmethod
+    def get_header_index(cls, value: str) -> int:
+        return cls.__header_names.index(value)
+
+    @classmethod
+    def get_header_name(cls, value: int) -> str:
+        if 0 <= value < len(cls.__header_names):
+            return cls.__header_names[value]
+        return ""
+
 
 class HorizonConstructModel(QAbstractTableModel):
     def __init__(self, data: List[HorizonConstructData], parent: QWidget = None, *args) -> None:
@@ -110,7 +129,7 @@ class HorizonConstructModel(QAbstractTableModel):
                 return self.__header_labels[section]
         return super(QAbstractTableModel, self).headerData(section, orientation, role)
 
-    def columnCount(self, parent):
+    def columnCount(self, parent: QModelIndex = ...):
         return len(self.__header_labels)
 
     def data(self, index, role):
@@ -133,6 +152,7 @@ class HorizonConstructModel(QAbstractTableModel):
             self.endInsertRows()
             return False
         self.__listdata.insert(row, data)
+        self.__check_base(row)
         self.endInsertRows()
         return True
 
@@ -157,6 +177,7 @@ class HorizonConstructModel(QAbstractTableModel):
         self.beginRemoveRows(QModelIndex(), row, row)
         if 0 <= row < self.rowCount():
             del self.__listdata[row]
+            self.__check_base()
             self.endRemoveRows()
             return True
         self.endRemoveRows()
@@ -166,15 +187,27 @@ class HorizonConstructModel(QAbstractTableModel):
         if not index.isValid():
             return False
         if role == Qt.EditRole:
-            if index.column() == 1:
-                if value:
-                    for i in range(self.rowCount()):
-                        self.__listdata[i][index.column()] = False
-                elif self.__listdata[index.row()].base_horizon != False:
-                    self.__listdata[0][index.column()] = True
             self.__listdata[index.row()][index.column()] = value
+            if index.column() == 1:
+                self.__check_base(index.row())
             self.dataChanged.emit(index, index, [Qt.EditRole])
         return True
+
+    def __check_base(self, row: int = -1) -> None:
+        if self.rowCount() == 0 or not (0 <= row < self.rowCount()):
+            return
+
+        found = list()
+        for i in range(self.rowCount()):
+            if self.__listdata[i].base_horizon:
+                found.append(i)
+                self.__listdata[i].base_horizon = False
+
+        if len(found) == 0:
+            self.__listdata[0].base_horizon = True
+            return
+        index = row if row in found else found[0]
+        self.__listdata[index].base_horizon = True
 
 
 class HorizonConstructDelegate(QStyledItemDelegate):
@@ -216,7 +249,7 @@ class HorizonConstructDelegate(QStyledItemDelegate):
                 return
         super().setModelData(editor, model, index)
 
-    def updateEditorGeometry(self, editor: QWidget, option:QStyleOptionViewItem, index: QModelIndex):
+    def updateEditorGeometry(self, editor: QWidget, option: QStyleOptionViewItem, index: QModelIndex):
         if index.isValid():
             if isinstance(editor, QCheckBox):
                 posx = int(option.rect.x() + option.rect.width() / 2 - editor.sizeHint().width() / 2)

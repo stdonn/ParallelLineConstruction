@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="/plugins/parallel_line_construction">
+    <file>images/line.svg</file>
     <file>images/folder_open.svg</file>
     <file>images/save.svg</file>
     <file>icon.png</file>
