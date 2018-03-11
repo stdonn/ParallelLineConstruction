@@ -22,27 +22,27 @@
  ***************************************************************************/
 """
 
-from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, Qt
-from PyQt5.QtGui import QIcon, QColor
-from PyQt5.QtWidgets import QAction, QFileDialog, QHeaderView
-from qgis.core import QgsProject, QgsMapLayer, QgsMessageLog, QgsWkbTypes
-from qgis.gui import QgsMapToolEmitPoint
-
-# Initialize Qt resources from file resources.py
-from .resources import *
-
-# Import the code for the DockWidget
-from .parallel_line_construction_dockwidget import ParallelLineConstructionDockWidget
-from .HorizonConstruct import HorizonConstructData, HorizonConstructDelegate, HorizonConstructModel
-from .configure import *
-
 import io
 import json
-import numpy as np
-import numpy.linalg as la
 import os.path
 import sys
 import traceback
+
+from PyQt5.QtCore import QCoreApplication, QSettings, QTranslator, Qt, qVersion
+from PyQt5.QtGui import QIcon, QColor
+from PyQt5.QtWidgets import QAction, QFileDialog, QHeaderView
+from qgis.core import QgsProject, QgsMessageLog, QgsWkbTypes
+from qgis.gui import QgsMapToolEmitPoint
+
+from .LineConstruction import LineConstruction
+from .HorizonConstruct import HorizonConstructData, HorizonConstructDelegate, HorizonConstructModel
+from .configure import *
+from .resources import *
+# Import the code for the DockWidget
+from .parallel_line_construction_dockwidget import ParallelLineConstructionDockWidget
+
+
+# Initialize Qt resources from file resources.py
 
 
 class ParallelLineConstruction:
@@ -65,9 +65,9 @@ class ParallelLineConstruction:
         # initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
-            self.plugin_dir,
-            'i18n',
-            'ParallelLineConstruction_{}.qm'.format(locale))
+                self.plugin_dir,
+                'i18n',
+                'ParallelLineConstruction_{}.qm'.format(locale))
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -87,13 +87,11 @@ class ParallelLineConstruction:
 
         self.pluginIsActive = False
         self.dockwidget = None
-        self.my_map_tool = None
-        self.previous_map_tool = None
-        self.model = None
-        self.active_layer = None
-        self.active_geometry = None
-        self.active_line = None
-        self.side = 0
+        self.__my_map_tool = None
+        self.__previous_map_tool = None
+        self.__model = None
+        self.__active_layer = None
+        self.__line_construct = LineConstruction(iface)
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -176,8 +174,8 @@ class ParallelLineConstruction:
 
         if add_to_menu:
             self.iface.addPluginToVectorMenu(
-                self.menu,
-                action)
+                    self.menu,
+                    action)
 
         self.actions.append(action)
 
@@ -188,10 +186,10 @@ class ParallelLineConstruction:
 
         icon_path = ':/plugins/parallel_line_construction/icon.png'
         self.add_action(
-            icon_path,
-            text=self.tr(u'ParallelLine Construction'),
-            callback=self.run,
-            parent=self.iface.mainWindow())
+                icon_path,
+                text=self.tr(u'ParallelLine Construction'),
+                callback=self.run,
+                parent=self.iface.mainWindow())
 
     # --------------------------------------------------------------------------
 
@@ -218,8 +216,8 @@ class ParallelLineConstruction:
 
         for action in self.actions:
             self.iface.removePluginVectorMenu(
-                self.tr(u'&Parallel Line Construction'),
-                action)
+                    self.tr(u'&Parallel Line Construction'),
+                    action)
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
         del self.toolbar
@@ -251,8 +249,8 @@ class ParallelLineConstruction:
 
             self.iface.currentLayerChanged.connect(self.on_current_layer_changed)
             # set acitve_layer and run slot once at plugin start
-            self.active_layer = self.iface.activeLayer()
-            self.on_current_layer_changed(self.active_layer)
+            self.__active_layer = self.iface.activeLayer()
+            self.on_current_layer_changed(self.__active_layer)
 
             self.dockwidget.add_unit.clicked.connect(self.add_unit)
             self.dockwidget.remove_unit.clicked.connect(self.remove_unit)
@@ -270,8 +268,8 @@ class ParallelLineConstruction:
                 data.append(HorizonConstructData(True, False, "msadfsdfsdfsd", 1234567, QColor(10, 100, 20)))
                 data.append(HorizonConstructData(True, False, "so", 150, QColor(255, 255, 20)))
 
-                self.model = HorizonConstructModel(data)
-                self.dockwidget.table_view.setModel(self.model)
+                self.__model = HorizonConstructModel(data)
+                self.dockwidget.table_view.setModel(self.__model)
                 self.dockwidget.table_view.setItemDelegate(HorizonConstructDelegate())
                 self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
                 self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
@@ -289,7 +287,7 @@ class ParallelLineConstruction:
         QgsMessageLog.logMessage(text, level=2)
 
     def add_unit(self) -> None:
-        self.model.insertRow(self.model.rowCount(), HorizonConstructData())
+        self.__model.insertRow(self.__model.rowCount(), HorizonConstructData())
 
     def remove_unit(self) -> None:
         # table = QTableView()
@@ -298,7 +296,7 @@ class ParallelLineConstruction:
             return
 
         row = selection.selectedIndexes()[0].row()
-        self.model.removeRow(row)
+        self.__model.removeRow(row)
 
     def move_unit_down(self) -> None:
         selection = self.dockwidget.table_view.selectionModel()
@@ -306,7 +304,7 @@ class ParallelLineConstruction:
             return
 
         row = selection.selectedIndexes()[0].row()
-        self.model.moveRowDown(row)
+        self.__model.moveRowDown(row)
         self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
 
@@ -316,7 +314,7 @@ class ParallelLineConstruction:
             return
 
         row = selection.selectedIndexes()[0].row()
-        self.model.moveRowUp(row)
+        self.__model.moveRowUp(row)
         self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
 
@@ -347,11 +345,11 @@ class ParallelLineConstruction:
             QgsMessageLog.logMessage("Could not load file (Exception: {}):\n{}".format(str(type(e)), str(e)), level=2)
             return
 
-        for i in range(self.model.rowCount()):
-            self.model.removeRow(0)
+        for i in range(self.__model.rowCount()):
+            self.__model.removeRow(0)
 
         for item in model_data:
-            self.model.insertRow(self.model.rowCount(), item)
+            self.__model.insertRow(self.__model.rowCount(), item)
 
     def save_unit_table(self):
         file = QFileDialog.getSaveFileName(self.dockwidget, "Save to", QgsProject.instance().readPath("./"),
@@ -359,11 +357,11 @@ class ParallelLineConstruction:
         file = file[0]
         if file != "":
             out_dict = dict()
-            for i in range(self.model.rowCount()):
+            for i in range(self.__model.rowCount()):
                 out_dict[i] = dict()
-                for j in range(self.model.columnCount()):
+                for j in range(self.__model.columnCount()):
                     name = HorizonConstructData.get_header_name(j)
-                    index = self.model.index(i, j)
+                    index = self.__model.index(i, j)
                     out_dict[i][name] = index.data(Qt.DisplayRole)
                     if j == 4:
                         out_dict[i][name] = out_dict[i][name].name()
@@ -373,18 +371,18 @@ class ParallelLineConstruction:
 
     def on_current_layer_changed(self, map_layer: QgsMapLayer) -> None:
         # QgsMessageLog.logMessage("on_current_layer_changed...", level=0)
-        if self.active_layer != None:
+        if self.__active_layer is not None:
             try:
-                self.active_layer.selectionChanged.disconnect()
+                self.__active_layer.selectionChanged.disconnect()
             except:
                 pass
-        self.active_layer = map_layer
+        self.__active_layer = map_layer
 
         # QgsMessageLog.logMessage("Test self.active_layer == None ({})".format(self.active_layer == None), level=0)
-        if (self.active_layer == None) or (self.active_layer.type() != QgsMapLayer.VectorLayer):
+        if (self.__active_layer is None) or (self.__active_layer.type() != QgsMapLayer.VectorLayer):
             return
 
-        self.active_layer.selectionChanged.connect(self.on_active_layer_selection_changed)
+        self.__active_layer.selectionChanged.connect(self.on_active_layer_selection_changed)
         self.parse_selection()
 
     def on_active_layer_selection_changed(self):
@@ -392,18 +390,14 @@ class ParallelLineConstruction:
 
     def parse_selection(self):
         self.dockwidget.notifications.setText("")
-        if self.active_layer == None:
+        if self.__active_layer is None:
             self.dockwidget.start_construction.setEnabled(False)
-        # else:
-        #    self.dockwidget.start_construction.setEnabled(True)
 
-        # QgsMessageLog.logMessage("parsing selection...", level=0)
-
-        geometry_type = QgsWkbTypes.geometryDisplayString(self.active_layer.geometryType())
-        selected_features = self.active_layer.selectedFeatures()
+        geometry_type = QgsWkbTypes.geometryDisplayString(self.__active_layer.geometryType())
+        selected_features = self.__active_layer.selectedFeatures()
 
         if len(selected_features) == 0 or geometry_type != "Line":
-            self.active_geometry = None
+            self.__line_construct.reset()
             self.dockwidget.start_construction.setEnabled(False)
             self.dockwidget.construct.setEnabled(False)
             return
@@ -411,72 +405,58 @@ class ParallelLineConstruction:
         text = ""
 
         if QgsWkbTypes.isMultiType(self.iface.activeLayer().wkbType()):
-            text += "This is line is stored as a multi part line. This tool only uses the first part, if more than one exists!\n\n"
+            text += "This is line is stored as a multi part line. This tool only uses the first part, if more than " + \
+                    "one exists!\n\n"
 
         if len(selected_features) > 1:
             text += "Multiple features selected. Using only the first of this selection.\n\n"
 
-        self.active_geometry = selected_features[0].geometry()
-        # from qgis.core import QgsGeometry
-        # tmp = QgsGeometry()
-        if self.active_geometry.isEmpty():
+        self.__line_construct.active_geometry = selected_features[0].geometry()
+
+        if self.__line_construct.active_geometry.isEmpty():
             self.dockwidget.notifications.setText("Selected an empty geometry!")
-            self.active_geometry = None
+            self.__line_construct.reset()
             return
 
-        if self.active_geometry.isMultipart():
-            self.active_geometry = self.active_geometry.asGeometryCollection()[0]
+        if self.__line_construct.active_geometry.isMultipart():
+            self.__line_construct.active_geometry = self.active_geometry.asGeometryCollection()[0]
 
-        line = self.active_geometry.asPolyline()
+        line = self.__line_construct.active_geometry.asPolyline()
         if len(line) < 2:
             self.dockwidget.notifications.setText("Selected line has less than two points. Cannot use it.")
-            self.active_geometry = None
+            self.__line_construct.reset()
             return
 
-        vertex = np.array(line[0])
-        dir  = np.array(line[-1]) - vertex
-        n = (-dir[1], dir[0])
-        self.active_line = (vertex, n)
+        self.__line_construct.active_line = line
 
         self.dockwidget.start_construction.setEnabled(True)
         self.dockwidget.notifications.setText(text)
 
     def start_line_construction(self):
         try:
-            self.previous_map_tool = self.iface.mapCanvas().mapTool()
-            self.my_map_tool = QgsMapToolEmitPoint(self.iface.mapCanvas())
-            self.my_map_tool.canvasClicked.connect(self.manage_click)
-            self.iface.mapCanvas().setMapTool(self.my_map_tool)
+            self.__previous_map_tool = self.iface.mapCanvas().mapTool()
+            self.__my_map_tool = QgsMapToolEmitPoint(self.iface.mapCanvas())
+            self.__my_map_tool.canvasClicked.connect(self.manage_click)
+            self.iface.mapCanvas().setMapTool(self.__my_map_tool)
             self.iface.mapCanvas().xyCoordinates.connect(self.update_coordinates)
         except Exception as e:
             self.exeption_handling(e)
 
     def update_coordinates(self, pos):
         text = "X: {:0.2f} - Y: {:0.2f}\n".format(pos.x(), pos.y())
-        P = np.array((pos.x(), pos.y()))
-        d1 = np.dot(P, self.active_line[1])
-        d2 = np.dot(self.active_line[0], self.active_line[1])
-
-        if d1 == d2:
-            text += "on the line"
-        elif d1 < d2:
-            text += "on the right side of the line"
-        else:
-            text += "on the left side of the line"
-
         self.dockwidget.notifications.setText(text)
 
     def manage_click(self, current_pos, clicked_button):
         if clicked_button == Qt.LeftButton:
             self.dockwidget.notifications.setText(
-                "Clicked on\nX: {:0.2f}\nY: {:0.2f}".format(current_pos.x(), current_pos.y()))
+                    "Clicked on\nX: {:0.2f}\nY: {:0.2f}".format(current_pos.x(), current_pos.y()))
 
         if clicked_button == Qt.RightButton:
             self.dockwidget.notifications.setText("Nothing changed")
         # reset to the previous mapTool
-        self.iface.mapCanvas().setMapTool(self.previous_map_tool)
+        self.iface.mapCanvas().setMapTool(self.__previous_map_tool)
         # clean remove myMapTool and relative handlers
-        self.my_map_tool = None
+        self.__my_map_tool = None
         self.iface.mapCanvas().xyCoordinates.disconnect(self.update_coordinates)
 
 # for information, iterator over feature and attributes:
