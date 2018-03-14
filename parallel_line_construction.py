@@ -65,9 +65,9 @@ class ParallelLineConstruction:
         # initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
-                self.plugin_dir,
-                'i18n',
-                'ParallelLineConstruction_{}.qm'.format(locale))
+            self.plugin_dir,
+            'i18n',
+            'ParallelLineConstruction_{}.qm'.format(locale))
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -91,7 +91,7 @@ class ParallelLineConstruction:
         self.__previous_map_tool = None
         self.__model = None
         self.__active_layer = None
-        self.__line_construct = LineConstruction(iface)
+        self.__line_construct = None
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -174,8 +174,8 @@ class ParallelLineConstruction:
 
         if add_to_menu:
             self.iface.addPluginToVectorMenu(
-                    self.menu,
-                    action)
+                self.menu,
+                action)
 
         self.actions.append(action)
 
@@ -186,10 +186,10 @@ class ParallelLineConstruction:
 
         icon_path = ':/plugins/parallel_line_construction/icon.png'
         self.add_action(
-                icon_path,
-                text=self.tr(u'ParallelLine Construction'),
-                callback=self.run,
-                parent=self.iface.mainWindow())
+            icon_path,
+            text=self.tr(u'ParallelLine Construction'),
+            callback=self.run,
+            parent=self.iface.mainWindow())
 
     # --------------------------------------------------------------------------
 
@@ -216,11 +216,15 @@ class ParallelLineConstruction:
 
         for action in self.actions:
             self.iface.removePluginVectorMenu(
-                    self.tr(u'&Parallel Line Construction'),
-                    action)
+                self.tr(u'&Parallel Line Construction'),
+                action)
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
-        del self.toolbar
+        try:
+            del self.toolbar
+            self.__line_construct.reset()
+        except AttributeError:
+            pass
 
     # --------------------------------------------------------------------------
 
@@ -247,10 +251,9 @@ class ParallelLineConstruction:
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
 
-            self.iface.currentLayerChanged.connect(self.on_current_layer_changed)
-            # set acitve_layer and run slot once at plugin start
-            self.__active_layer = self.iface.activeLayer()
-            self.on_current_layer_changed(self.__active_layer)
+            self.__line_construct = LineConstruction(self.iface, self.dockwidget)
+            self.dockwidget.line_join_style.addItems(["Use rounded joins", "Use mitered joins", "Use beveled joins"])
+            self.dockwidget.line_join_style.setCurrentIndex(1)
 
             self.dockwidget.add_unit.clicked.connect(self.add_unit)
             self.dockwidget.remove_unit.clicked.connect(self.remove_unit)
@@ -264,17 +267,23 @@ class ParallelLineConstruction:
                 QgsMessageLog.logMessage("\n\n{}\n\n".format(100 * "="), level=0)
                 data = list()
                 data.append(HorizonConstructData(True, False, "mo", 70, QColor(10, 255, 20)))
-                data.append(HorizonConstructData(True, False, "mm", 1000, QColor(10, 150, 20)))
-                data.append(HorizonConstructData(True, False, "msadfsdfsdfsd", 1234567, QColor(10, 100, 20)))
+                data.append(HorizonConstructData(True, False, "mm", 110, QColor(10, 150, 20)))
+                data.append(HorizonConstructData(True, True, "mu", 100, QColor(10, 100, 20)))
                 data.append(HorizonConstructData(True, False, "so", 150, QColor(255, 255, 20)))
 
                 self.__model = HorizonConstructModel(data)
+                self.__line_construct.model = self.__model
                 self.dockwidget.table_view.setModel(self.__model)
                 self.dockwidget.table_view.setItemDelegate(HorizonConstructDelegate())
                 self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
                 self.dockwidget.table_view.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
             except Exception as e:
                 self.exeption_handling(e)
+
+            # set acitve_layer and run slot once at plugin start
+            self.iface.currentLayerChanged.connect(self.on_current_layer_changed)
+            self.__active_layer = self.iface.activeLayer()
+            self.on_current_layer_changed(self.__active_layer)
 
     def exeption_handling(self, e: Exception) -> None:
         _, _, exc_traceback = sys.exc_info()
@@ -419,7 +428,7 @@ class ParallelLineConstruction:
             return
 
         if self.__line_construct.active_geometry.isMultipart():
-            self.__line_construct.active_geometry = self.active_geometry.asGeometryCollection()[0]
+            self.__line_construct.active_geometry = self.__line_construct.active_geometry.asGeometryCollection()[0]
 
         line = self.__line_construct.active_geometry.asPolyline()
         if len(line) < 2:
@@ -445,13 +454,16 @@ class ParallelLineConstruction:
     def update_coordinates(self, pos):
         text = "X: {:0.2f} - Y: {:0.2f}\n".format(pos.x(), pos.y())
         self.dockwidget.notifications.setText(text)
+        self.__line_construct.calc_side(pos)
 
-    def manage_click(self, current_pos, clicked_button):
+    def manage_click(self, pos, clicked_button):
         if clicked_button == Qt.LeftButton:
+            self.__line_construct.calc_side(pos)
             self.dockwidget.notifications.setText(
-                    "Clicked on\nX: {:0.2f}\nY: {:0.2f}".format(current_pos.x(), current_pos.y()))
+                "Clicked on\nX: {:0.2f}\nY: {:0.2f}\nside: {}".format(pos.x(), pos.y(), self.__line_construct.side))
 
         if clicked_button == Qt.RightButton:
+            self.__line_construct.side = 0
             self.dockwidget.notifications.setText("Nothing changed")
         # reset to the previous mapTool
         self.iface.mapCanvas().setMapTool(self.__previous_map_tool)

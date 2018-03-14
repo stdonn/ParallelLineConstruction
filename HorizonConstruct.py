@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from typing import Any, List
+from typing import Any, List, Tuple
 
 from PyQt5.QtCore import QAbstractTableModel, QModelIndex, QRect, QRectF, QSize, QVariant, Qt
 from PyQt5.QtGui import QBrush, QColor, QPainter, QPen
@@ -16,26 +16,26 @@ class HorizonConstructData:
         "contruct unit",
         "base unit",
         "name",
-        "thickness",
+        "distance",
         "color"
     ]
 
-    def __init__(self, construct_horizon=True, base_horizon=False, name="unknown", thickness=1,
+    def __init__(self, construct_horizon=True, base_horizon=False, name="unknown", distance=1,
                  color=QColor(255, 255, 255)):
         self.__data = [None, None, None, None, None]
         self.construct_horizon = construct_horizon
         self.base_horizon = base_horizon
         self.name = name
-        self.thickness = thickness
+        self.distance = distance
         self.color = color
 
     def __repr__(self):
         return "HorizonConstructData <{}, {}, {}, {}, {}>".format(self.name, self.construct_horizon, self.base_horizon,
-                                                                  self.thickness, self.color.name())
+                                                                  self.distance, self.color.name())
 
     def __str__(self):
-        return "{}\n\tconstruct: {}\n\tbase: {}\n\tthickness: {}\n\tcolor: {}".format(self.name, self.construct_horizon,
-                                                                                      self.base_horizon, self.thickness,
+        return "{}\n\tconstruct: {}\n\tbase: {}\n\tdistance: {}\n\tcolor: {}".format(self.name, self.construct_horizon,
+                                                                                      self.base_horizon, self.distance,
                                                                                       self.color.name())
 
     def __getitem__(self, item: int or List[int]) -> object or List:
@@ -87,11 +87,11 @@ class HorizonConstructData:
         self.__data[2] = str(value)
 
     @property
-    def thickness(self) -> int:
+    def distance(self) -> int:
         return self.__data[3]
 
-    @thickness.setter
-    def thickness(self, value: int) -> None:
+    @distance.setter
+    def distance(self, value: int) -> None:
         self.__data[3] = int(value)
 
     @classmethod
@@ -111,23 +111,33 @@ class HorizonConstructModel(QAbstractTableModel):
         :param data: import data
         """
         QAbstractTableModel.__init__(self, parent, *args)
-        self.__listdata = data
+        self.__data_list = data
         bases = [x.base_horizon for x in data]
         if not True in bases and len(data) > 0:
-            self.__listdata[0][1] = True
+            self.__data_list[0][1] = True
+            self.__base_item = 0
         elif len(data) > 0:
             first = bases.index(True)
-            for dat in self.__listdata:
+            for dat in self.__data_list:
                 dat.base_horizon = False
-            self.__listdata[first].base_horizon = True
+            self.__data_list[first].base_horizon = True
+            self.__base_item = first
 
-        self.__header_labels = ["build", "base", "unit name", "thickness", "color"]
+        self.__header_labels = ["build", "base", "unit name", "distance", "color"]
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole):
         if role == Qt.DisplayRole and orientation == Qt.Horizontal:
             if -1 < section < len(self.__header_labels):
                 return self.__header_labels[section]
         return super(QAbstractTableModel, self).headerData(section, orientation, role)
+
+    @property
+    def base_item_index(self) -> int:
+        """
+        Returns the index of the base item
+        :return: index of the base item
+        """
+        return self.__base_item
 
     def columnCount(self, parent: QModelIndex = ...):
         return len(self.__header_labels)
@@ -136,7 +146,7 @@ class HorizonConstructModel(QAbstractTableModel):
         if not index.isValid():
             return QVariant()
         elif role in (Qt.DisplayRole, Qt.EditRole):
-            return QVariant(self.__listdata[index.row()][index.column()])
+            return QVariant(self.__data_list[index.row()][index.column()])
         elif index.column() == 3 and role == Qt.TextAlignmentRole:
             return Qt.AlignRight
         return QVariant()
@@ -151,7 +161,7 @@ class HorizonConstructModel(QAbstractTableModel):
         if row < 0:
             self.endInsertRows()
             return False
-        self.__listdata.insert(row, data)
+        self.__data_list.insert(row, data)
         self.__check_base(row)
         self.endInsertRows()
         return True
@@ -159,24 +169,34 @@ class HorizonConstructModel(QAbstractTableModel):
     def moveRowUp(self, row: int):
         if 0 < row < self.rowCount():
             self.beginMoveRows(QModelIndex(), row, row, QModelIndex(), row - 1)
-            item = self.__listdata.pop(row)
-            self.__listdata.insert(row - 1, item)
+            item = self.__data_list.pop(row)
+            self.__data_list.insert(row - 1, item)
             self.endMoveRows()
 
     def moveRowDown(self, row: int):
         if 0 <= row < self.rowCount() - 1:
             self.beginMoveRows(QModelIndex(), row, row, QModelIndex(), row + 2)
-            item = self.__listdata.pop(row)
-            self.__listdata.insert(row + 1, item)
+            item = self.__data_list.pop(row)
+            self.__data_list.insert(row + 1, item)
             self.endMoveRows()
 
+    def row(self, index: int) -> HorizonConstructData or None:
+        """
+        Returns HorizonConstructData-item at given index
+        :param index: index of requested HorizonConstructData-item
+        :return: item at given index
+        """
+        if 0 <= index < self.rowCount():
+            return self.__data_list[index]
+        return None
+
     def rowCount(self, parent: QModelIndex = ...) -> Any:
-        return len(self.__listdata)
+        return len(self.__data_list)
 
     def removeRow(self, row: int) -> bool:
         self.beginRemoveRows(QModelIndex(), row, row)
         if 0 <= row < self.rowCount():
-            del self.__listdata[row]
+            del self.__data_list[row]
             self.__check_base()
             self.endRemoveRows()
             return True
@@ -187,7 +207,7 @@ class HorizonConstructModel(QAbstractTableModel):
         if not index.isValid():
             return False
         if role == Qt.EditRole:
-            self.__listdata[index.row()][index.column()] = value
+            self.__data_list[index.row()][index.column()] = value
             if index.column() == 1:
                 self.__check_base(index.row())
             self.dataChanged.emit(index, index, [Qt.EditRole])
@@ -199,15 +219,17 @@ class HorizonConstructModel(QAbstractTableModel):
 
         found = list()
         for i in range(self.rowCount()):
-            if self.__listdata[i].base_horizon:
+            if self.__data_list[i].base_horizon:
                 found.append(i)
-                self.__listdata[i].base_horizon = False
+                self.__data_list[i].base_horizon = False
 
         if len(found) == 0:
-            self.__listdata[0].base_horizon = True
+            self.__data_list[0].base_horizon = True
+            self.__base_item = 0
             return
         index = row if row in found else found[0]
-        self.__listdata[index].base_horizon = True
+        self.__data_list[index].base_horizon = True
+        self.__base_item = index
 
 
 class HorizonConstructDelegate(QStyledItemDelegate):
@@ -311,7 +333,7 @@ class HorizonConstructDelegate(QStyledItemDelegate):
             painter.drawRect(x, y, width, height)
             painter.restore()
 
-        # set the thickness label
+        # set the distance label
         elif isinstance(index_data, int):
             text = "{:,} m".format(index_data).replace(',', ' ')
             rect = QRectF(option.rect)
