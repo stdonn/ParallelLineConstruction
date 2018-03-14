@@ -133,6 +133,9 @@ class LineConstruction(QObject):
         Calculates the direction of the line
         :return: Nothing
         """
+        if self.__active_line is None:
+            self.__side = 0
+            return
         vertex = np.array(self.__active_line[0])
         vect = np.array(self.__active_line[-1])
         vect -= vertex
@@ -177,7 +180,7 @@ class LineConstruction(QObject):
         # first: reset exisiting rubberband
         self.__reset_tmp_units()
 
-        if self.__side == 0:
+        if self.__side == 0 or self.active_geometry is None:
             return
 
         sum_distances = 0
@@ -263,9 +266,15 @@ class LineConstruction(QObject):
                 f = QgsFeature()
                 # unit = QgsRubberBand()
                 f.setGeometry(unit[1])
-                f.setAttribute(name_field_index, unit[0])
-                QgsMessageLog.logMessage("Adding unit \"{}\"".format(unit[0]), level=0)
+                # f.setAttribute(name_field_index, unit[0])
+                attr = list()
+                for field in vpr.fields().toList():
+                    attr.append(None)
+                attr[name_field_index] = unit[0]
+                f.setAttributes(attr)
+                QgsMessageLog.logMessage("Adding unit \"{}\" - id: {} / fid: {}".format(unit[0], name_field_index, f.id()), level=0)
                 vpr.addFeatures([f])
+                #vpr.changeAttributeValues({f.id(): attr})
 
             QgsMessageLog.logMessage("Through the list without error...", level=0)
 
