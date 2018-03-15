@@ -2,8 +2,8 @@
 
 
 from PyQt5.QtCore import QObject, QVariant, pyqtSignal
-from qgis.core import QgsGeometry, QgsFeature, QgsField, QgsMapLayer, QgsMessageLog, QgsPoint, QgsPointXY, QgsProject, \
-    QgsVectorLayer, QgsWkbTypes
+from qgis.core import QgsGeometry, QgsCategorizedSymbolRenderer, QgsFeature, QgsField, QgsMapLayer, QgsMessageLog, \
+    QgsPoint, QgsPointXY, QgsProject, QgsRendererCategory, QgsSymbol, QgsVectorLayer, QgsWkbTypes
 from qgis.gui import QgisInterface, QgsRubberBand
 
 import numpy as np
@@ -270,12 +270,26 @@ class LineConstruction(QObject):
             QgsMessageLog.logMessage("Through the list without error...", level=0)
 
             vector_layer.updateExtents()
+
+            # at least: try to set symbology
+            symbology = list()
+            for index in range(self.model.rowCount()):
+                row = self.model.row(index)
+                sym = QgsSymbol.defaultSymbol(vector_layer.geometryType())
+                sym.setColor(row.color())
+                # sym.setWidth(0.2)
+                category = QgsRendererCategory(row.name, sym, row.name)
+                symbology.append(category)
+
+            renderer = QgsCategorizedSymbolRenderer("name", symbology)
+            vector_layer.setRenderer(renderer)
+
         except Exception as e:
             _, _, exc_traceback = sys.exc_info()
             text = "Error Message:\n{}\nTraceback:\n{}".format(str(e), '\n'.join(traceback.format_tb(exc_traceback)))
             # text = "Error Message:\nNone\nTraceback:\n{}".format(traceback.print_exc())
             QgsMessageLog.logMessage(text, level=2)
-            #QgsMessageLog.logMessage("An exception occurred:\n{}".format(str(e)), level=2)
+            # QgsMessageLog.logMessage("An exception occurred:\n{}".format(str(e)), level=2)
         finally:
             QgsMessageLog.logMessage("Finished adding units", level=0)
             self.reset()
