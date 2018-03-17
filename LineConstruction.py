@@ -7,7 +7,7 @@ from qgis.core import QgsGeometry, QgsCategorizedSymbolRenderer, QgsFeature, Qgs
 from qgis.gui import QgisInterface, QgsRubberBand
 
 import numpy as np
-from typing import List, Tuple
+from typing import List
 
 import sys, traceback
 
@@ -23,13 +23,13 @@ class LineConstruction(QObject):
     def __init__(self, iface: QgisInterface, dockwidget: ParallelLineConstructionDockWidget) -> None:
         """
         Initialization of the class
+        :type iface: QgsInterface object for the QGIS connection
         """
         super().__init__()
         self.__iface = iface
         self.__active_geometry = None
         self.__active_line = None
         self.__dockwidget = dockwidget
-        self.__line_normal = None
         self.__model = None
         self.__side = 0
         self.__tmp_units = list()
@@ -96,12 +96,14 @@ class LineConstruction(QObject):
     @model.setter
     def model(self, mod: HorizonConstructModel or None) -> None:
         if self.__model is not None:
+            # noinspection PyUnresolvedReferences
             self.__model.dataChanged.disconnect(self.__construct_frame_lines)
         if mod is None:
             self.__model = None
         if not isinstance(mod, HorizonConstructModel):
             raise TypeError("Parameter is not of type HorizonConstructionModel")
         self.__model = mod
+        # noinspection PyUnresolvedReferences
         self.__model.dataChanged.connect(self.__construct_frame_lines)
 
     @property
@@ -139,15 +141,19 @@ class LineConstruction(QObject):
         vertex = np.array(self.__active_line[0])
         vect = np.array(self.__active_line[-1])
         vect -= vertex
-        self.__line_normal = np.array((-1 * vect[1], vect[0]))
-        self.__line_normal = self.__line_normal / np.linalg.norm(self.__line_normal)
+        normal = np.array((-1 * vect[1], vect[0]))
+        length = np.linalg.norm(normal)
+        if length != 0:
+            normal = normal / length
 
-        p = np.array((pos.x(), pos.y()))
-        d1 = np.dot(p, self.__line_normal)
-        d2 = np.dot(self.active_line[0], self.__line_normal)
+            p = np.array((pos.x(), pos.y()))
+            d1 = np.dot(p, normal)
+            d2 = np.dot(self.active_line[0], normal)
 
-        side = np.sign(d1 - d2)
-        side = side if side != 0 else 1
+            side = np.sign(d1 - d2)
+            side = side if side != 0 else 1
+        else:
+            side = 1
         if side != self.__side:
             self.__side = side
             self.side_changed.emit()
@@ -177,7 +183,7 @@ class LineConstruction(QObject):
         :return: Nothing
         """
 
-        # first: reset exisiting rubberband
+        # first: reset existing rubberband
         self.__reset_tmp_units()
 
         if self.__side == 0 or self.active_geometry is None:
@@ -235,9 +241,11 @@ class LineConstruction(QObject):
         lyrs = [lyr for lyr in self.__iface.mapCanvas().layers() if lyr.name() == "Parallel Unit Lines"]
         if len(lyrs) == 0:
             current_layer = self.__iface.mapCanvas().currentLayer()
+            # noinspection PyArgumentList
             crs = QgsProject.instance().crs().toWkt()
             uri = "linestring?crs=wkt:{}&field=name:string(255)".format(crs)
             vector_layer = QgsVectorLayer(uri, "Parallel Unit Lines", "memory")
+            # noinspection PyArgumentList
             QgsProject.instance().addMapLayer(vector_layer)
             self.__iface.mapCanvas().setCurrentLayer(current_layer)
         else:
@@ -251,6 +259,7 @@ class LineConstruction(QObject):
         vpr = vector_layer.dataProvider()
         fields = [f.name() for f in vpr.fields().toList()]
         if not "name" in fields:
+            # noinspection PyArgumentList
             vpr.addAttributes([QgsField("name", QVariant.String, len=255)])
 
         name_field_index = vpr.fields().indexOf("name")
@@ -260,23 +269,16 @@ class LineConstruction(QObject):
             return
 
         try:
-            QgsMessageLog.logMessage("Adding units to the layer [{}]".format(len(unit_list)), level=0)
             # adding the features to the layer
             for unit in unit_list:
                 f = QgsFeature()
-                # unit = QgsRubberBand()
                 f.setGeometry(unit[1])
-                # f.setAttribute(name_field_index, unit[0])
                 attr = list()
-                for field in vpr.fields().toList():
+                for _ in vpr.fields().toList():
                     attr.append(None)
                 attr[name_field_index] = unit[0]
                 f.setAttributes(attr)
-                QgsMessageLog.logMessage("Adding unit \"{}\" - id: {} / fid: {}".format(unit[0], name_field_index, f.id()), level=0)
                 vpr.addFeatures([f])
-                #vpr.changeAttributeValues({f.id(): attr})
-
-            QgsMessageLog.logMessage("Through the list without error...", level=0)
 
             vector_layer.updateExtents()
 
@@ -284,23 +286,22 @@ class LineConstruction(QObject):
             symbology = list()
             for index in range(self.model.rowCount()):
                 row = self.model.row(index)
+                # noinspection PyArgumentList
                 sym = QgsSymbol.defaultSymbol(vector_layer.geometryType())
-                sym.setColor(row.color())
-                # sym.setWidth(0.2)
+                sym.setColor(row.color)
                 category = QgsRendererCategory(row.name, sym, row.name)
                 symbology.append(category)
 
             renderer = QgsCategorizedSymbolRenderer("name", symbology)
             vector_layer.setRenderer(renderer)
+            vector_layer.triggerRepaint()
 
         except Exception as e:
             _, _, exc_traceback = sys.exc_info()
             text = "Error Message:\n{}\nTraceback:\n{}".format(str(e), '\n'.join(traceback.format_tb(exc_traceback)))
-            # text = "Error Message:\nNone\nTraceback:\n{}".format(traceback.print_exc())
+            # noinspection PyArgumentList,PyCallByClass
             QgsMessageLog.logMessage(text, level=2)
-            # QgsMessageLog.logMessage("An exception occurred:\n{}".format(str(e)), level=2)
         finally:
-            QgsMessageLog.logMessage("Finished adding units", level=0)
             self.reset()
 
     def reset(self) -> None:
@@ -310,7 +311,6 @@ class LineConstruction(QObject):
         """
         self.__active_geometry = None
         self.__active_line = None
-        self.__line_normal = None
         self.__side = 1
         self.__dockwidget.start_construction.setEnabled(False)
 

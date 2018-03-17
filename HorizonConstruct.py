@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
 
-from typing import Any, List, Tuple
+from typing import Any, List
 
 from PyQt5.QtCore import QAbstractTableModel, QModelIndex, QRect, QRectF, QSize, QVariant, Qt
 from PyQt5.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt5.QtWidgets import QCheckBox, QLabel, QStyledItemDelegate, QStyleOptionViewItem, QWidget
 
-from qgis.core import QgsMessageLog
 from qgis.gui import QgsColorButton
 
 
 class HorizonConstructData:
     # define header name class wide
     __header_names = [
-        "contruct unit",
+        "construct unit",
         "base unit",
         "name",
         "distance",
@@ -56,6 +55,7 @@ class HorizonConstructData:
 
     @property
     def base_horizon(self) -> bool:
+        # noinspection PyTypeChecker
         return self.__data[1]
 
     @base_horizon.setter
@@ -64,6 +64,7 @@ class HorizonConstructData:
 
     @property
     def color(self) -> QColor:
+        # noinspection PyTypeChecker
         return self.__data[4]
 
     @color.setter
@@ -72,6 +73,7 @@ class HorizonConstructData:
 
     @property
     def construct_horizon(self) -> bool:
+        # noinspection PyTypeChecker
         return self.__data[0]
 
     @construct_horizon.setter
@@ -80,6 +82,7 @@ class HorizonConstructData:
 
     @property
     def name(self) -> str:
+        # noinspection PyTypeChecker
         return self.__data[2]
 
     @name.setter
@@ -88,6 +91,7 @@ class HorizonConstructData:
 
     @property
     def distance(self) -> int:
+        # noinspection PyTypeChecker
         return self.__data[3]
 
     @distance.setter
@@ -110,6 +114,7 @@ class HorizonConstructModel(QAbstractTableModel):
         """
         :param data: import data
         """
+        # noinspection PyArgumentList
         QAbstractTableModel.__init__(self, parent, *args)
         self.__data_list = data
         bases = [x.base_horizon for x in data]
@@ -142,6 +147,7 @@ class HorizonConstructModel(QAbstractTableModel):
     def columnCount(self, parent: QModelIndex = ...):
         return len(self.__header_labels)
 
+    # noinspection PyMethodOverriding
     def data(self, index, role):
         if not index.isValid():
             return QVariant()
@@ -151,11 +157,13 @@ class HorizonConstructModel(QAbstractTableModel):
             return Qt.AlignRight
         return QVariant()
 
+    # noinspection PyTypeChecker
     def flags(self, index: QModelIndex) -> Qt.ItemFlags:
         if not index.isValid():
             return Qt.ItemIsEnabled
         return Qt.ItemIsEditable | super(QAbstractTableModel, self).flags(index)
 
+    # noinspection PyMethodOverriding
     def insertRow(self, row: int, data: HorizonConstructData) -> bool:
         self.beginInsertRows(QModelIndex(), row, row)
         if row < 0:
@@ -193,6 +201,7 @@ class HorizonConstructModel(QAbstractTableModel):
     def rowCount(self, parent: QModelIndex = ...) -> Any:
         return len(self.__data_list)
 
+    # noinspection PyMethodOverriding
     def removeRow(self, row: int) -> bool:
         self.beginRemoveRows(QModelIndex(), row, row)
         if 0 <= row < self.rowCount():
@@ -210,6 +219,7 @@ class HorizonConstructModel(QAbstractTableModel):
             self.__data_list[index.row()][index.column()] = value
             if index.column() == 1:
                 self.__check_base(index.row())
+            # noinspection PyUnresolvedReferences
             self.dataChanged.emit(index, index, [Qt.EditRole])
         return True
 

@@ -16,8 +16,8 @@ email=stephan@donndorf.info
 
 about=This plugin constructs parallel lines based on a given baseline. It is comparable to an offset line in cad programs / tools, but can construct more than on line.
 
-tracker=http://bugs
-repository=http://repo
+tracker=https://github.com/stdonn/ParallelLineConstruction/issues
+repository=https://github.com/stdonn/ParallelLineConstruction
 # End of mandatory metadata
 
 # Recommended items:
@@ -26,7 +26,7 @@ repository=http://repo
 # changelog=
 
 # Tags are comma separated with spaces allowed
-tags=python cad lines offset
+tags=cad lines offset
 
 homepage=https://www.donndorf.info
 category=Vector
