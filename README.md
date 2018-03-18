@@ -13,3 +13,8 @@ You have to download the tool and save it into your QGIS Plugin directory. After
 ## System Requirements
 
 This toolbox was tested with QGIS version 3.0.1.
+
+## Usage
+
+Select a line feature, click on "Start Construction" and select a side, where to construct the lines. An example of side selection is demonstrated with the following images:
+![Side Selection Left](images/example_side_left.png "Side Selection Left") ![Side Selection Right](images/example_side_right.png "Side Selection Right")
