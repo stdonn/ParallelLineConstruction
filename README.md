@@ -21,3 +21,7 @@ Select a line feature, click on "Start Construction" and select a side, where to
 Construction left of the line | Construction right of the line
 --- | ---
 ![Side Selection Left](images/example_side_left.png "Side Selection Left") | ![Side Selection Right](images/example_side_right.png "Side Selection Right")
+
+If you click the left mouse button it stores the side, right mouse button resets the plugin.
+
+Finally, click "Construct Units" and a new temporary layer ("Parallel Unit Lines") will be created, in which the new lines will be saved.
