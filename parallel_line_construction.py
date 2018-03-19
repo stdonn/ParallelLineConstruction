@@ -25,7 +25,7 @@ import traceback
 
 from PyQt5.QtCore import QCoreApplication, QSettings, QTranslator, Qt, qVersion
 from PyQt5.QtGui import QIcon, QColor
-from PyQt5.QtWidgets import QAction, QFileDialog, QHeaderView
+from PyQt5.QtWidgets import QAction, QFileDialog, QHeaderView, QPushButton
 from qgis.core import QgsMapLayer, QgsMessageLog, QgsPoint, QgsProject, QgsWkbTypes
 from qgis.gui import QgsMapToolEmitPoint, QgsMessageBar
 
@@ -57,9 +57,9 @@ class ParallelLineConstruction:
         # initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
-                self.plugin_dir,
-                'i18n',
-                'ParallelLineConstruction_{}.qm'.format(locale))
+            self.plugin_dir,
+            'i18n',
+            'ParallelLineConstruction_{}.qm'.format(locale))
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -167,8 +167,8 @@ class ParallelLineConstruction:
 
         if add_to_menu:
             self.iface.addPluginToVectorMenu(
-                    self.menu,
-                    action)
+                self.menu,
+                action)
 
         self.actions.append(action)
 
@@ -180,10 +180,10 @@ class ParallelLineConstruction:
 
         icon_path = ':/plugins/parallel_line_construction/icon.png'
         self.add_action(
-                icon_path,
-                text=self.tr(u'ParallelLine Construction'),
-                callback=self.run,
-                parent=self.iface.mainWindow())
+            icon_path,
+            text=self.tr(u'ParallelLine Construction'),
+            callback=self.run,
+            parent=self.iface.mainWindow())
 
     # --------------------------------------------------------------------------
 
@@ -211,8 +211,8 @@ class ParallelLineConstruction:
 
         for action in self.actions:
             self.iface.removePluginVectorMenu(
-                    self.tr(u'&Parallel Line Construction'),
-                    action)
+                self.tr(u'&Parallel Line Construction'),
+                action)
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
         try:
@@ -289,10 +289,15 @@ class ParallelLineConstruction:
         """
         _, _, exc_traceback = sys.exc_info()
         text = "Error Message:\n{}\nTraceback:\n{}".format(str(e), '\n'.join(traceback.format_tb(exc_traceback)))
-        self.iface.messageBar().pushMessage("Error",
-                                            "An exception occurred during the process. " +
-                                            "For more details, please take a look to the log windows.",
-                                            level=2)
+
+        widget = self.iface.messageBar().createMessage("Error", "An exception occurred during the process. " +
+                                                       "For more details, please take a look to the log windows.")
+        button = QPushButton(widget)
+        button.setText("Show log windows")
+        # noinspection PyUnresolvedReferences
+        button.pressed.connect(self.iface.openMessageLog)
+        widget.layout().addWidget(button)
+        self.iface.messageBar().pushWidget(widget, level = 2)
 
         # noinspection PyCallByClass,PyArgumentList,PyTypeChecker
         QgsMessageLog.logMessage(text, level=2)
