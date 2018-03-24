@@ -28,7 +28,7 @@ repository=https://github.com/stdonn/ParallelLineConstruction
 # Tags are comma separated with spaces allowed
 tags=cad lines offset
 
-homepage=https://www.donndorf.info
+homepage=https://github.com/stdonn/ParallelLineConstruction
 category=Vector
 icon=icon.png
 # experimental flag
