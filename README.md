@@ -1,7 +1,5 @@
 # Parallel Line Construction
 
-**ATTENTION: This tool is currently under development and it is not ready for any productive usage!**
-
 ## General Description
 
 This plugin constructs parallel lines based on a given baseline. It is comparable to an offset line in cad programs / tools, but can construct more than on line.
