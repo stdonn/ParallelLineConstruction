@@ -354,5 +354,6 @@ class LineConstruction(QObject):
         self.__active_line = None
         self.__side = 1
         self.__dockwidget.start_construction.setEnabled(False)
+        self.__dockwidget.construct.setEnabled(False)
 
         self.__reset_tmp_units()

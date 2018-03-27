@@ -27,7 +27,7 @@ from PyQt5.QtCore import QCoreApplication, QSettings, QTranslator, Qt, qVersion
 from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtWidgets import QAction, QFileDialog, QHeaderView, QPushButton
 from qgis.core import QgsMapLayer, QgsMessageLog, QgsPoint, QgsProject, QgsWkbTypes
-from qgis.gui import QgsMapToolEmitPoint, QgsMessageBar
+from qgis.gui import QgsMapToolEmitPoint
 
 from .HorizonConstruct import UnitConstructionData, UnitConstructionDelegate, UnitConstructionModel
 from .LineConstruction import LineConstruction
@@ -259,8 +259,6 @@ class ParallelLineConstruction:
             self.dockwidget.start_construction.clicked.connect(self.on_start_line_construction_clicked)
 
             try:
-                # noinspection PyCallByClass,PyArgumentList,PyTypeChecker
-                QgsMessageLog.logMessage("\n\n{}\n\n".format(100 * "="), level=0)
                 self.__model = UnitConstructionModel()
                 self.__line_construct.model = self.__model
                 self.dockwidget.table_view.setModel(self.__model)
@@ -309,7 +307,8 @@ class ParallelLineConstruction:
         :return: Nothing
         """
         if self.__active_layer is None:
-            self.dockwidget.start_construction.setEnabled(False)
+            self.__line_construct.reset()
+            return
 
         # noinspection PyArgumentList
         geometry_type = QgsWkbTypes.geometryDisplayString(self.__active_layer.geometryType())
@@ -317,8 +316,6 @@ class ParallelLineConstruction:
 
         if len(selected_features) == 0 or geometry_type != "Line":
             self.__line_construct.reset()
-            self.dockwidget.start_construction.setEnabled(False)
-            self.dockwidget.construct.setEnabled(False)
             return
 
         text = ""
@@ -326,10 +323,12 @@ class ParallelLineConstruction:
         # noinspection PyArgumentList
         if QgsWkbTypes.isMultiType(self.iface.activeLayer().wkbType()):
             text += "This is line is stored as a multi part line. This tool only uses the first part, if more than " + \
-                    "one exists!\n\n"
+                    "one exists!"
 
         if len(selected_features) > 1:
-            text += "Multiple features selected. Using only the first of this selection.\n\n"
+            if text != "":
+                text += "\n\n"
+            text += "Multiple features selected. Using only the first of this selection."
 
         self.__line_construct.active_geometry = selected_features[0].geometry()
 
@@ -350,7 +349,8 @@ class ParallelLineConstruction:
         self.__line_construct.active_line = line
 
         self.dockwidget.start_construction.setEnabled(True)
-        self.iface.messageBar().pushInfo("Info: ", text)
+        if text != "":
+            self.iface.messageBar().pushInfo("Info: ", text)
 
     #
     # slots
@@ -376,17 +376,16 @@ class ParallelLineConstruction:
         :return: Nothing
         """
         if self.__active_layer is not None:
-            # noinspection PyBroadException
             try:
                 self.__active_layer.selectionChanged.disconnect()
-            except TypeError:
+            except AttributeError:
                 pass
-        self.__active_layer = map_layer
 
-        if (self.__active_layer is None) or (self.__active_layer.type() != QgsMapLayer.VectorLayer):
-            return
-
-        self.__active_layer.selectionChanged.connect(self.on_active_layer_selection_changed)
+        if (map_layer is None) or (map_layer.type() != QgsMapLayer.VectorLayer):
+            self.__active_layer = None
+        else:
+            self.__active_layer = map_layer
+            self.__active_layer.selectionChanged.connect(self.on_active_layer_selection_changed)
         self._parse_selection()
 
     def on_move_unit_down_clicked(self) -> None:
