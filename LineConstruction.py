@@ -246,6 +246,7 @@ class LineConstruction(QObject):
                 # noinspection PyArgumentList
                 sym = QgsSymbol.defaultSymbol(vector_layer.geometryType())
                 sym.setColor(row.color)
+                sym.setWidth(0.4)
                 category = QgsRendererCategory(row.name, sym, row.name)
                 symbology.append(category)
 
@@ -282,10 +283,15 @@ class LineConstruction(QObject):
 
         # upwards
         base_item_index = self.__model.base_item_index
+        QgsMessageLog.logMessage("base_item_index: {}".format(base_item_index), level=0)
+        QgsMessageLog.logMessage(str(self.model.row(base_item_index)), level=0)
+
         if base_item_index == -1:
             return
-        for row_index in range(base_item_index, self.__model.rowCount()):
+        for row_index in range(base_item_index + 1, self.__model.rowCount()):
             row = self.__model.row(row_index)
+            sum_distances += row.distance * self.side * -1
+            QgsMessageLog.logMessage("row.name: {} - sum_distances: {} m".format(row.name, sum_distances), level=0)
             if row.construct_unit:
                 geometry = self.active_geometry.offsetCurve(sum_distances, 8, join_style,
                                                             10 * sum_distances * (-1 if sum_distances < 0 else 1))
@@ -293,16 +299,15 @@ class LineConstruction(QObject):
                 color = row.color
                 color.setAlpha(150)
                 rubberband.setColor(color)
+                rubberband.setWidth(2)
                 rubberband.addGeometry(geometry)
                 rubberband.show()
                 self.__tmp_units.append([row.name, rubberband])
-            sum_distances += row.distance * self.side * -1
 
         # downwards
         sum_distances = 0
-        for row_index in range(base_item_index - 1, -1, -1):
+        for row_index in range(base_item_index, -1, -1):
             row = self.__model.row(row_index)
-            sum_distances -= row.distance * self.side * -1
             if row.construct_unit:
                 geometry = self.active_geometry.offsetCurve(sum_distances, 8, join_style,
                                                             10 * sum_distances * (-1 if sum_distances < 0 else 1))
@@ -310,9 +315,11 @@ class LineConstruction(QObject):
                 color = row.color
                 color.setAlpha(150)
                 rubberband.setColor(color)
+                rubberband.setWidth(2)
                 rubberband.addGeometry(geometry)
                 rubberband.show()
                 self.__tmp_units.append([row.name, rubberband])
+            sum_distances -= row.distance * self.side * -1
 
         self.__dockwidget.construct.setEnabled(True)
         self.__dockwidget.construct.clicked.connect(self.__build_lines)

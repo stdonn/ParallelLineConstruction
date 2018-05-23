@@ -382,6 +382,8 @@ class ParallelLineConstruction:
                 self.__active_layer.selectionChanged.disconnect(self.on_active_layer_selection_changed)
             except AttributeError:
                 pass
+            except TypeError:
+                pass
 
         if (map_layer is None) or (map_layer.type() != QgsMapLayer.VectorLayer):
             self.__active_layer = None
