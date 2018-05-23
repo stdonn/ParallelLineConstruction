@@ -26,7 +26,7 @@ import traceback
 from PyQt5.QtCore import QCoreApplication, QSettings, QTranslator, Qt, qVersion
 from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtWidgets import QAction, QFileDialog, QHeaderView, QPushButton
-from qgis.core import QgsMapLayer, QgsMessageLog, QgsPoint, QgsProject, QgsWkbTypes
+from qgis.core import QgsGeometry, QgsMapLayer, QgsMessageLog, QgsPoint, QgsProject, QgsWkbTypes
 from qgis.gui import QgsMapToolEmitPoint
 
 from .HorizonConstruct import UnitConstructionData, UnitConstructionDelegate, UnitConstructionModel
@@ -330,6 +330,7 @@ class ParallelLineConstruction:
                 text += "\n\n"
             text += "Multiple features selected. Using only the first of this selection."
 
+        self.__line_construct.active_feature_id = selected_features[0].id()
         self.__line_construct.active_geometry = selected_features[0].geometry()
 
         if self.__line_construct.active_geometry.isEmpty():
@@ -377,7 +378,8 @@ class ParallelLineConstruction:
         """
         if self.__active_layer is not None:
             try:
-                self.__active_layer.selectionChanged.disconnect()
+                self.__active_layer.geometryChanged.disconnect(self.on_geometry_changed)
+                self.__active_layer.selectionChanged.disconnect(self.on_active_layer_selection_changed)
             except AttributeError:
                 pass
 
@@ -385,8 +387,40 @@ class ParallelLineConstruction:
             self.__active_layer = None
         else:
             self.__active_layer = map_layer
+            self.__active_layer.geometryChanged.connect(self.on_geometry_changed)
             self.__active_layer.selectionChanged.connect(self.on_active_layer_selection_changed)
+
         self._parse_selection()
+
+    def on_geometry_changed(self, fid: int, geometry: QgsGeometry) -> None:
+        """
+        Slot activated, if a geometry changed in an edit session of the currently selected active layer
+        :param fid: FeatureID of the changed geometry
+        :param geometry: changed QgsGeometry object
+        :return: Nothing
+        """
+        # noinspection PyCallByClass,PyArgumentList,PyTypeChecker
+        QgsMessageLog.logMessage("on_geometry_changed [{}]: {}".format(fid, str(geometry.asJson())), level=0)
+
+        if self.__line_construct.active_feature_id == fid:
+            # -> last part of self._parse_selection
+            self.__line_construct.active_geometry = geometry
+
+            if self.__line_construct.active_geometry.isEmpty():
+                self.iface.messageBar().pushWarning("Warning", "Selected an empty geometry!")
+                self.__line_construct.reset()
+                return
+
+            if self.__line_construct.active_geometry.isMultipart():
+                self.__line_construct.active_geometry = self.__line_construct.active_geometry.asGeometryCollection()[0]
+
+            line = self.__line_construct.active_geometry.asPolyline()
+            if len(line) < 2:
+                self.iface.messageBar().pushWarning("Warning", "Selected line has less than two points. Cannot use it.")
+                self.__line_construct.reset()
+                return
+
+            self.__line_construct.active_line = line
 
     def on_move_unit_down_clicked(self) -> None:
         """
@@ -431,9 +465,13 @@ class ParallelLineConstruction:
         # parsing the data
         model_data = list()
         try:
-            keys = list(data_loaded.keys())
+            keys = [int(i) for i in list(data_loaded.keys())]
+            # noinspection PyCallByClass,PyArgumentList,PyTypeChecker
+            #QgsMessageLog.logMessage("keys: {}".format(str(keys)), level=0)
             keys.sort()
+            #QgsMessageLog.logMessage("keys sorted: {}".format(str(keys)), level=0)
             for i in keys:
+                i = str(i)
                 data = UnitConstructionData()
                 for j in data_loaded[i]:
                     index = UnitConstructionData.get_header_index(j)

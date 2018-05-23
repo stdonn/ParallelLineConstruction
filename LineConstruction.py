@@ -43,6 +43,7 @@ class LineConstruction(QObject):
         """
         super().__init__()
         self.__iface = iface
+        self.__active_fid = -1
         self.__active_geometry = None
         self.__active_line = None
         self.__dockwidget = dockwidget
@@ -58,6 +59,25 @@ class LineConstruction(QObject):
     side_changed = pyqtSignal(name='side_changed')
 
     # setter and getter
+    @property
+    def active_feature_id(self) -> QgsGeometry:
+        """
+        returns self.__active_fid
+        :return: the id of the currently active feature
+        """
+        return self.__active_fid
+
+    @active_feature_id.setter
+    def active_feature_id(self, fid: int):
+        """
+        Sets self.__active_fid
+        :raises TypeError: if fid is not an instance of int
+        """
+        if not isinstance(fid, int):
+            raise TypeError("Parameter is not of type int")
+
+        self.__active_fid = fid
+
     @property
     def active_geometry(self) -> QgsGeometry:
         """
@@ -105,6 +125,7 @@ class LineConstruction(QObject):
                 raise TypeError("List item is not a QgsPointXY")
 
         self.__active_line = line
+        self.side_changed.emit()
 
     @property
     def model(self) -> UnitConstructionModel:
@@ -350,6 +371,7 @@ class LineConstruction(QObject):
         Resets the object to the initialization stage
         :return: Nothing
         """
+        self.__active_fid = -1
         self.__active_geometry = None
         self.__active_line = None
         self.__side = 1
