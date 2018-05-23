@@ -10,7 +10,7 @@
 name=Parallel Line Construction
 qgisMinimumVersion=3.0
 description=This plugin constructs parallel lines based on a given base line
-version=0.1
+version=0.2
 author=Stephan Donndorf
 email=stephan@donndorf.info
 
